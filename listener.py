@@ -28,7 +28,6 @@ class Listener(QThread):
             self.ctrl_time = time_now
         except Exception as e:
             print(e)
-            QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")       
 
             
 

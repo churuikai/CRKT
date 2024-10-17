@@ -32,4 +32,3 @@ class Translator(QThread):
         self.signal.emit(res.choices[0].message.content)
       except Exception as e:
         print(e)
-        QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")

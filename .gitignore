@@ -1,3 +1,5 @@
 config.ini
 dist/
 build/
+*.zip
+info.txt

@@ -1,5 +1,10 @@
 import sys
 import os
+# 获取当前文件路径
+current_path = os.path.dirname(os.path.abspath(__file__))
+# 将当前路径添加到系统路径中
+sys.path.append(current_path)
+
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QInputDialog, QMessageBox
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QSettings
@@ -17,7 +22,6 @@ class TranslatorApp(QApplication):
         self.setQuitOnLastWindowClosed(False)
         
         # 设置托盘图标
-        # icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "icon.png")
         icon_path =("icon.png")
         if not os.path.exists(icon_path):
             QMessageBox.critical(None, "Error", "Tray icon not found!")
@@ -79,22 +83,28 @@ class TranslatorApp(QApplication):
         self.listener.start()
         
     def translate_text(self, text):
-        self.transaltor = Translator(text, 
-                                api_key=self.settings.value("api_key"), 
-                                base_url=self.settings.value("api_url"),
-                                default_headers=eval(self.settings.value("api_headers")),
-                                model=self.settings.value("model"),
-                                prompt=self.settings.value("prompt"))
-        self.transaltor.signal.connect(self.show_translation)
-        self.transaltor.start()
+        try:
+            self.transaltor = Translator(text, 
+                                    api_key=self.settings.value("api_key"), 
+                                    base_url=self.settings.value("api_url"),
+                                    default_headers=eval(self.settings.value("api_headers")),
+                                    model=self.settings.value("model"),
+                                    prompt=self.settings.value("prompt"))
+            self.transaltor.signal.connect(self.show_translation)
+            self.transaltor.start()
+        except Exception as e:
+            print(e)
     
     def show_translation(self, translated_text):
-        print(f"Translated text: {translated_text}")
-        if self.translator_window and self.translator_window.isVisible():
-            self.translator_window.update_html_content(translated_text)
-        else:
-            self.translator_window = MarkdownWindow(translated_text)
-            self.translator_window.display()
+        try:
+            print(f"Translated text: {translated_text}")
+            if self.translator_window and self.translator_window.isVisible():
+                self.translator_window.update_html_content(translated_text)
+            else:
+                self.translator_window = MarkdownWindow(translated_text)
+                self.translator_window.display()
+        except Exception as e:
+            print(e)
 
     def set_api_key(self):
         try:
