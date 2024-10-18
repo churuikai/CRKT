@@ -32,3 +32,4 @@ class Translator(QThread):
         self.signal.emit(res.choices[0].message.content)
       except Exception as e:
         print(e)
+        self.signal.emit(f'@An error occurred:{str(e)}')

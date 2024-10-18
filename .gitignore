@@ -1,5 +1,9 @@
-config.ini
+*.ini
 dist/
 build/
 *.zip
 info.txt
+prompt.txt
+test.py
+__pycache__/
+*.spec

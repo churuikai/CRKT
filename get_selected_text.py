@@ -1,4 +1,3 @@
-# 获取选中文本，清楚剪切板的影响
 import pyperclip
 from pynput import keyboard
 import time
@@ -13,7 +12,7 @@ def get_selected_text():
     with keyboard.Controller().pressed(keyboard.Key.ctrl):
         keyboard.Controller().press('c')
         keyboard.Controller().release('c')
-    time.sleep(0.05)
+    time.sleep(0.1)
     # 获取剪切板内容
     text = pyperclip.paste()
     # 恢复剪切板内容

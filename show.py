@@ -3,6 +3,7 @@ import sys
 sys.path.append('D:/Pearcat/Desktop/CRKT')
 import os
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit
+from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5 import QtGui
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -14,23 +15,15 @@ class MarkdownWindow(QMainWindow):
         super().__init__()
         # 窗口置顶
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint) 
-    
-        # 设置窗口标题和大小
         self.setWindowTitle(' ')
         self.setGeometry(0, 0, 1000, 700)
         # 创建一个 QWebEngineView 来显示HTML内容
         self.web_view = QWebEngineView(self)
         self.web_view.setZoomFactor(1.75)
         self.setCentralWidget(self.web_view)
-        # 设置初始的字体大小
         self.update_html_content(md_text)
-        
-        # 创建 QTextEdit 作为显示区域
-        # self.text_edit = QTextEdit(self)
-        # self.text_edit.setReadOnly(True)  # 设置为只读
-        # self.setCentralWidget(self.text_edit)
-        # self.text_edit.setMarkdown(md_text)
 
+        
     def update_html_content(self, md_text):
         
         # 保存到文件
