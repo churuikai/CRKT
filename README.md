@@ -4,7 +4,7 @@
 
 #### 1. 安装
 
-下载CRKT.zip，在合适位置解压。启动入口为`crkt.exe`，启动后右下角托盘出现图标。
+下载 [CRKT.zip](https://github.com/churuikai/CRKT/releases/tag/v2) ，在合适位置解压。启动入口为`crkt.exe`，启动后右下角托盘出现图标。
 
 #### 2. 配置
 
