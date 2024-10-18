@@ -1,9 +1,5 @@
 import sys
 import os
-# 获取当前文件路径
-current_path = os.path.dirname(os.path.abspath(__file__))
-# 将当前路径添加到系统路径中
-sys.path.append(current_path)
 
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QInputDialog, QMessageBox, QLineEdit
 from PyQt5.QtGui import QIcon
@@ -18,10 +14,8 @@ class TranslatorApp(QApplication):
     def __init__(self, sys_argv):
         super().__init__(sys_argv)
         
-        # 禁止所有窗口关闭后自动退出
         self.setQuitOnLastWindowClosed(False)
-        
-        # 设置托盘图标
+
         icon_path =("icon.png")
         if not os.path.exists(icon_path):
             QMessageBox.critical(None, "Error", "Tray icon not found!")
@@ -30,7 +24,7 @@ class TranslatorApp(QApplication):
         self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
         self.tray_icon.setToolTip("CRK-Translator")
 
-        # 创建右键菜单
+        # 右键菜单
         self.menu = QMenu()
 
         self.api_key_action = QAction("设置 api-Key", self)
@@ -64,11 +58,11 @@ class TranslatorApp(QApplication):
         self.menu.addAction(self.exit_action)
 
         self.tray_icon.setContextMenu(self.menu)
-        self.tray_icon.show()  # 显示托盘图标
+        self.tray_icon.show()  
         
         self.translator_window = None
 
-        # 使用 QSettings 存储和读取 API Key 和模型
+        # QSettings
         self.settings = QSettings("config.ini", QSettings.IniFormat)
         if not self.settings.contains("prompt"):
             self.settings.setValue("prompt", '''你将作为一个专业的翻译助手，任务是将文本从英文翻译成中文。翻译时需要遵循以下要求：
@@ -85,7 +79,7 @@ class TranslatorApp(QApplication):
         if not self.settings.contains("api_headers"):
             self.settings.setValue("api_headers", '{"x-foo": "true"}')
 
-        # 启动全局热键监听线程
+        # 全局热键监听线程
         self.listener = Listener()
         self.listener.signal.connect(self.translate_text)
         self.listener.start()
@@ -130,7 +124,7 @@ class TranslatorApp(QApplication):
             api_key, ok = QInputDialog().getMultiLineText(None, " ", "API-Key", text=api_key, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
             if ok and api_key:
                 self.api_key = api_key
-                self.settings.setValue("api_key", api_key)  # 保存 API Key
+                self.settings.setValue("api_key", api_key)  
                 print(f"API Key{api_key} has been set.")
         except Exception as e:
             print(e)
@@ -142,7 +136,7 @@ class TranslatorApp(QApplication):
             api_url, ok = QInputDialog.getMultiLineText(None, " ", "Base-Url", text=api_url, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
             if ok and api_url:
                 self.api_url = api_url
-                self.settings.setValue("api_url", api_url)  # 保存 API URL
+                self.settings.setValue("api_url", api_url)  
                 print(f"API URL{api_url} has been set.")
         except Exception as e:
             print(e)
@@ -153,7 +147,7 @@ class TranslatorApp(QApplication):
             api_headers = self.settings.value("api_headers", dict())
             api_headers, ok = QInputDialog.getMultiLineText(None, " ", "API-Headers", text=api_headers, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
             if ok and api_headers:
-                self.settings.setValue("api_headers", api_headers)  # 保存 API Headers
+                self.settings.setValue("api_headers", api_headers)  
                 print(f"API Headers{api_headers} has been set.")
         except Exception as e:
             print(e)
@@ -161,7 +155,6 @@ class TranslatorApp(QApplication):
             
     def select_model(self):
         try:
-            # 下拉框选择模型
             models = ["gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-3.5-turbo"]
             model = self.settings.value("model", "gpt-3.5-turbo")
             model, ok = QInputDialog.getItem(None, " ", "Model", models, models.index(model), False, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
@@ -177,18 +170,15 @@ class TranslatorApp(QApplication):
             prompt = self.settings.value("prompt", "Translate the following text to Chinese (Simplified), ensuring a professional and accurate tone. Format the translated text using Markdown, ensuring a clean and aesthetically pleasing layout.")
             prompt, ok = QInputDialog.getMultiLineText(None, " ", "Prompt", text=prompt, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
             if ok and prompt:
-                self.settings.setValue("prompt", prompt)  # 保存提示
+                self.settings.setValue("prompt", prompt) 
                 print(f"Prompt {prompt} has been set.")
         except Exception as e:
             print(e)
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
-
-
     def quit_app(self):
         print("Quitting the application...")
         self.quit()
-
 
 if __name__ == "__main__":
     app = TranslatorApp(sys.argv)
