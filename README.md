@@ -12,6 +12,8 @@
 
 例如：`api-key: xx-xxxxxxxxxxxxxxxx`   `base-url: https://api.openai.com/v1/` 
 
+> 推荐一个免费的api项目 [https://github.com/popjane/free_chatgpt_api](https://github.com/popjane/free_chatgpt_api)
+
 模型推荐使用 `gpt-4o-mini`
 
 配置文件会保存在`config.ini`
