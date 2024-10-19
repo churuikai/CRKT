@@ -60,8 +60,9 @@ You are a professional translator whose task is to translate English text into C
 
 ## 4. 效果展示
 
-大模型高质量翻译，翻译结果以markdown样式展示，支持数学公式。
+大模型高质量翻译，翻译结果以markdown样式展示，解释单个单词短语十分灵活，有概率（受限于复杂的pdf格式）支持表格和数学公式。
 
+![4](https://github.com/user-attachments/assets/4726d3ab-edff-45ac-970f-b081c4d63d88)
 ![2](https://github.com/user-attachments/assets/82c5fc45-d018-4299-8bf7-602e7437c6cb)
 ![1](https://github.com/user-attachments/assets/88a319b0-0f65-427d-b7ab-9fdb388e5eaa)
 ![3](https://github.com/user-attachments/assets/99cc16c9-3287-435d-9994-536b94771876)
