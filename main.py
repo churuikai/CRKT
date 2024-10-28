@@ -31,7 +31,7 @@ class TranslatorApp(QApplication):
         self.api_key_action.triggered.connect(self.set_api_key)
         self.menu.addAction(self.api_key_action)
         
-        self.api_url = QAction("例如https://api.gpt.ge/v1/，注意'/v1/'", self)
+        self.api_url = QAction("设置 base-url", self)
         self.api_url.triggered.connect(self.set_api_url)
         self.menu.addAction(self.api_url)
         
@@ -79,6 +79,8 @@ class TranslatorApp(QApplication):
             self.settings.setValue("model", "gpt-3.5-turbo-0125")
         if not self.settings.contains("api_headers"):
             self.settings.setValue("api_headers", '{"x-foo": "true"}')
+        if not self.settings.contains("api_url"):
+            self.settings.setValue("api_url", "例如https://api.gpt.ge/v1/，注意一般需要附加'/v1/'")
 
         # 全局热键监听线程
         self.listener = Listener()
