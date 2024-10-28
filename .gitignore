@@ -7,3 +7,4 @@ prompt.txt
 test.py
 __pycache__/
 *.spec
+*.pkl
