@@ -1,7 +1,7 @@
-import openai
 from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import QMessageBox
 from cache import Cache
+
+from api import openai_request
 
 class Translator(QThread):
     signal = pyqtSignal(str)
@@ -22,22 +22,21 @@ class Translator(QThread):
         if cache_text:
           self.signal.emit(cache_text)
           return
-        assert self.api_key, "API Key is required."
-        assert self.base_url, "API URL is required."
-        assert self.default_headers, "API Headers is required."
-        assert self.model, "Model is required."
-        assert self.prompt, "Prompt is required."
-        openai.api_key = self.api_key
-        openai.base_url = self.base_url
-        openai.default_headers = self.default_headers
-        print(f"request")
-        res = openai.chat.completions.create(
-          model=self.model,
-          messages=[{"role": "system", "content": self.prompt}, {"role": "user", "content": self.text}]
-        )
-        self.__class__.cache.set(self.text, res.choices[0].message.content)
-        self.signal.emit(res.choices[0].message.content)
+
+        completion_stream = openai_request(self.text, self.api_key, self.base_url, self.default_headers, self.model, self.prompt, Structured=False)
+        response_content = ""
+        for chunk in completion_stream:
+          try:
+            if chunk.choices[0].delta.content:
+              response_content += chunk.choices[0].delta.content
+              self.signal.emit(response_content)
+          except Exception as e:
+            print(e)
+            print(chunk)
+
+        self.__class__.cache.set(self.text, response_content)
+        # self.signal.emit(res)
       except Exception as e:
         print(e)
-        self.signal.emit(f'@An error occurred:{str(e)}\n 可能是因为url未添加/v1/，如https://api.openai.com/v1/')
+        self.signal.emit(f'@An error occurred:{str(e)}\n ')
 

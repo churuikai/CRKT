@@ -1,17 +1,16 @@
 import sys
 # 添加到环境
-sys.path.append('D:/Pearcat/Desktop/CRKT')
+# sys.path.append('D:/Pearcat/Desktop/CRKT')
 import os
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTextEdit
-from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtCore import Qt, QUrl
 from PyQt5 import QtGui
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-import re
 from bs4 import BeautifulSoup
+import time
 
 class MarkdownWindow(QMainWindow):
-    def __init__(self, md_text=" ", font_size=50):
+    def __init__(self ):
         super().__init__()
         # 窗口置顶
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint) 
@@ -21,26 +20,24 @@ class MarkdownWindow(QMainWindow):
         self.web_view = QWebEngineView(self)
         self.web_view.setZoomFactor(1.75)
         self.setCentralWidget(self.web_view)
-        self.update_html_content(md_text)
-
-        
-    def update_html_content(self, md_text):
-        
-        # 保存到文件
-        with open(os.path.abspath("index.html"), "r", encoding="utf-8") as f:
-            html_template = f.read()
-
-        soup = BeautifulSoup(html_template, 'html.parser')
-        # 找到匹配的textarea标签并替换其内容
-        textarea = soup.find('textarea')
-        if textarea:
-            textarea.string = md_text
-            
-        with open(os.path.abspath("index.html"), "w", encoding="utf-8") as f:
-            f.write(str(soup))
-        
         self.web_view.load(QUrl.fromLocalFile(os.path.abspath("index.html")))
 
+    def update_html_content(self, md_text):
+        # 如果窗口关闭
+        if not self.isVisible():
+            self.display()
+            time.sleep(0.1)
+        # 如果窗口最下化
+        if self.isMinimized():
+            self.showNormal()
+    
+        # 执行JavaScript代码
+        javascript = f'updateMarkdown(`{md_text.replace("`", "\\`")}`);'
+        try:
+            self.web_view.page().runJavaScript(javascript)
+        except Exception as e:
+            self.web_view.load(QUrl.fromLocalFile(os.path.abspath("index.html")))
+            
     def display(self):
         cursor_pos = QtGui.QCursor.pos()
         window_size = self.size()

@@ -60,7 +60,8 @@ class TranslatorApp(QApplication):
         self.tray_icon.setContextMenu(self.menu)
         self.tray_icon.show()  
         
-        self.translator_window = None
+        self.translator_window = MarkdownWindow()
+
 
         # QSettings
         self.settings = QSettings("config.ini", QSettings.IniFormat)
@@ -86,20 +87,17 @@ class TranslatorApp(QApplication):
         self.listener = Listener()
         self.listener.signal.connect(self.translate_text)
         self.listener.start()
-        
+  
     def translate_text(self, text):
         try:
-            if self.translator_window and self.translator_window.isVisible():
-                self.translator_window.update_html_content('<h4 style="color: #82529d;">翻译中...</h4>')
-            else:
-                self.translator_window = MarkdownWindow('<h4 style="color: #82529d;">翻译中...</h4>')
-                self.translator_window.display()
+            self.translator_window.update_html_content('<h4 style="color: #82529d;">翻译中...</h4>')
             self.transaltor = Translator(text, 
                                     api_key=self.settings.value("api_key"), 
                                     base_url=self.settings.value("api_url"),
                                     default_headers=eval(self.settings.value("api_headers")),
                                     model=self.settings.value("model"),
                                     prompt=self.settings.value("prompt"))
+            
             self.transaltor.signal.connect(self.show_translation)
             self.transaltor.start()
         except Exception as e:
@@ -112,11 +110,9 @@ class TranslatorApp(QApplication):
                 QMessageBox.critical(None, "Error", translated_text)
                 return
             print(f"Translated text: {translated_text}")
-            if self.translator_window and self.translator_window.isVisible():
-                self.translator_window.update_html_content(translated_text)
-            else:
-                self.translator_window = MarkdownWindow(translated_text)
-                self.translator_window.display()
+
+            self.translator_window.update_html_content(translated_text)
+            
         except Exception as e:
             print(e)
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")

@@ -22,19 +22,14 @@ class Listener(QThread):
         try:
             time_now = time.time()
             if time_now - self.ctrl_time < 0.3:
-                text = self.get_selected_text()
-                if not text or text == "":
-                    text = self.text_before
-                    print(f"Before text: {text}")
-                else:
-                    self.text_before = text
+                text = self.__get_selected_text()
                 self.signal.emit(text)
                 print(f"Selected text: {text}")
             self.ctrl_time = time_now
         except Exception as e:
             print(e)
     
-    def get_selected_text(self):
+    def __get_selected_text(self):
         # 保存剪切板内容
         old_clipboard = pyperclip.paste()
         # 清空剪切板
@@ -49,6 +44,20 @@ class Listener(QThread):
         text = pyperclip.paste()
         # 恢复剪切板内容
         pyperclip.copy(old_clipboard)
+        # 处理失焦问题
+        if not text or text == "":
+            text = self.text_before
+            print(f"Get text before: {text}")
+        else:
+            self.text_before = text
+        # 格式化      
+        text = self.__format_text(text)
+        return text
+    
+    def __format_text(self, text):
+        # 去除首尾空格
+        while text and text[0] in " \n\t\r.": text = text[1:]
+        while text and text[-1] in " \n\t\r.": text = text[:-1]
         return text
 
             
