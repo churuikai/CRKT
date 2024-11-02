@@ -102,11 +102,14 @@ class TranslatorApp(QApplication):
             self.transaltor.start()
         except Exception as e:
             print(e)
+            # 关闭窗口
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
     
     def show_translation(self, translated_text):
         try:
             if '@An error occurred:' in translated_text:
+                self.translator_window.close()
                 QMessageBox.critical(None, "Error", translated_text)
                 return
             print(f"Translated text: {translated_text}")
@@ -115,6 +118,7 @@ class TranslatorApp(QApplication):
             
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def set_api_key(self):
@@ -127,6 +131,7 @@ class TranslatorApp(QApplication):
                 print(f"API Key{api_key} has been set.")
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
             
     def set_api_url(self):
@@ -139,6 +144,7 @@ class TranslatorApp(QApplication):
                 print(f"API URL{api_url} has been set.")
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def set_api_headers(self):
@@ -150,6 +156,7 @@ class TranslatorApp(QApplication):
                 print(f"API Headers{api_headers} has been set.")
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
             
     def select_model(self):
@@ -162,6 +169,7 @@ class TranslatorApp(QApplication):
                 print(f"Model {model} has been selected.")
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def edit_prompt(self):
@@ -173,6 +181,7 @@ class TranslatorApp(QApplication):
                 print(f"Prompt {prompt} has been set.")
         except Exception as e:
             print(e)
+            self.translator_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def quit_app(self):
