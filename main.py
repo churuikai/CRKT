@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt
 
 from translator import Translator
 from listener import Listener
-from show import MarkdownWindow
+from show import DisplayWindow
 
 class TranslatorApp(QApplication):
     def __init__(self, sys_argv):
@@ -23,6 +23,15 @@ class TranslatorApp(QApplication):
         self.setWindowIcon(QIcon(icon_path))
         self.tray_icon = QSystemTrayIcon(QIcon(icon_path), self)
         self.tray_icon.setToolTip("CRK-Translator")
+
+        self.display_window = DisplayWindow()
+        # 全局热键监听线程
+        self.listener = Listener()
+        self.listener.double_ctrl.connect(self.get_text)
+        self.listener.double_shift.connect(self.append_text)
+        self.listener.start()
+        # 信息显示交互窗口
+        self.display_window.append_text.connect(self.translate_text)
 
         # 右键菜单
         self.menu = QMenu()
@@ -60,7 +69,6 @@ class TranslatorApp(QApplication):
         self.tray_icon.setContextMenu(self.menu)
         self.tray_icon.show()  
         
-        self.translator_window = MarkdownWindow()
 
 
         # QSettings
@@ -83,14 +91,25 @@ class TranslatorApp(QApplication):
         if not self.settings.contains("api_url"):
             self.settings.setValue("api_url", "例如https://api.gpt.ge/v1/，注意一般需要附加'/v1/'")
 
-        # 全局热键监听线程
-        self.listener = Listener()
-        self.listener.signal.connect(self.translate_text)
-        self.listener.start()
+
+    # 添加文本到暂存区
+    def append_text(self, text):
+        try:
+            self.display_window.append_text_content(text)
+        except Exception as e:
+            print(e)
+            self.display_window.close()
+            QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
+    
+    # 获取暂存区+选中的文本
+    def get_text(self, text): 
+        self.display_window.get_text(text)
   
+    # 翻译文本
     def translate_text(self, text):
         try:
-            self.translator_window.update_html_content('<h4 style="color: #82529d;">翻译中...</h4>')
+            self.display_window.update_html_content('<h4 style="color: #82529d;">翻译中...</h4>')
+            
             self.transaltor = Translator(text, 
                                     api_key=self.settings.value("api_key"), 
                                     base_url=self.settings.value("api_url"),
@@ -103,20 +122,21 @@ class TranslatorApp(QApplication):
         except Exception as e:
             print(e)
             # 关闭窗口
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
     
+    # 显示翻译结果
     def show_translation(self, translated_text):
         try:
             if '@An error occurred:' in translated_text:
-                self.translator_window.close()
+                self.display_window.close()
                 QMessageBox.critical(None, "Error", translated_text)
                 return
-            self.translator_window.update_html_content(translated_text)
+            self.display_window.update_html_content(translated_text)
             
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def set_api_key(self):
@@ -129,7 +149,7 @@ class TranslatorApp(QApplication):
                 print(f"API Key{api_key} has been set.")
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
             
     def set_api_url(self):
@@ -142,7 +162,7 @@ class TranslatorApp(QApplication):
                 print(f"API URL{api_url} has been set.")
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def set_api_headers(self):
@@ -154,7 +174,7 @@ class TranslatorApp(QApplication):
                 print(f"API Headers{api_headers} has been set.")
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
             
     def select_model(self):
@@ -167,7 +187,7 @@ class TranslatorApp(QApplication):
                 print(f"Model {model} has been selected.")
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def edit_prompt(self):
@@ -179,7 +199,7 @@ class TranslatorApp(QApplication):
                 print(f"Prompt {prompt} has been set.")
         except Exception as e:
             print(e)
-            self.translator_window.close()
+            self.display_window.close()
             QMessageBox.critical(None, "Error", f"An error occurred: {str(e)}")
 
     def quit_app(self):

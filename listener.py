@@ -6,70 +6,70 @@ import time
 
 class Listener(QThread):
     signal = pyqtSignal(str)
+    double_shift = pyqtSignal(str)
+    double_ctrl = pyqtSignal(str)
     def __init__(self):
         super().__init__()
         self.ctrl_time = 0
         self.shift_time = 0
         self.text_before = ""
-        self.text_append = ""
+        self.is_append = False
 
     def run(self):
-        # with keyboard.GlobalHotKeys({
-        #     '<ctrl>': self.on_ctrl_press,
-        #     '<shift>': self.on_shift_press
-        # }) as listener:
-        #     listener.join()
-        keyboard.Listener(on_release=self.on_release).start()
 
-    def on_release(self, key):
+        keyboard.Listener(on_release=self.__on_release).start()
+
+    def __on_release(self, key):
         try:
             if key == keyboard.Key.shift or key == keyboard.Key.shift_r or key == keyboard.Key.shift_l:
                 time_now = time.time()
                 if time_now - self.shift_time < 0.3:
                     self.shift_time -= 0.3
-                    self.on_double_shift()
+                    self.__on_double_shift()
                 else:
                     self.shift_time = time_now
             elif key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r or key == keyboard.Key.ctrl:
                 time_now = time.time()
                 if time_now - self.ctrl_time < 0.3:
                     self.ctrl_time -= 0.3
-                    self.on_double_ctrl()
+                    self.__on_double_ctrl()
                 else:
                     self.ctrl_time = time_now
         except Exception as e:
             print(e)
     
-    def on_double_ctrl(self):
+    def __on_double_ctrl(self):
         try:
             text = self.__get_selected_text()
-            if self.text_append == "":
-                if text != "":
-                    self.text_before = text
-            else:
+            if self.is_append:
+                self.is_append = False
                 if text == self.text_before:
-                    self.text_before = self.text_append
+                    self.double_ctrl.emit("")
                 else:
-                    self.text_before = self.text_append + text
-            self.text_append = ""
-            self.signal.emit(self.text_before)
-            print(f"selected text----\n{self.text_before}\n----")
+                    self.double_ctrl.emit(text)
+            else:
+                if text == "":
+                    text = self.text_before
+                    
+                self.double_ctrl.emit(text)
+
+            self.text_before = text if text != "" else self.text_before
+                    
+            
+            # print(f"selected text----\n{self.text_before}\n----")
         except Exception as e:
             print(e)
             
-    def on_double_shift(self):
+    def __on_double_shift(self):
         try:
             keyboard.Controller().press(keyboard.Key.ctrl)
             time.sleep(0.1)
             self.ctrl_time = 0
             text = self.__get_selected_text()
-            if text != "" and text != self.text_before:
-                self.text_before = text
-                self.text_append = self.text_append + text
-            elif self.text_append == "" and text == self.text_before:
-                self.text_append = text
-            # self.signal.emit(self.text_before)
-            print(f"Append text----\n{self.text_append}\n----")
+            self.text_before = text
+            self.double_shift.emit(text)
+            self.is_append = True
+            # print(f"Append text----\n{self.text_append}\n----")
         except Exception as e:
             print(e)
     
@@ -97,9 +97,9 @@ class Listener(QThread):
     
     def __format_text(self, text):
         # 去除首尾空格
-        while text and text[0] in " \n\t\r.": text = text[1:]
-        while text and text[-1] in " \n\t\r.": text = text[:-1]
-        return text
+        # while text and text[0] in " \n\t\r.": text = text[1:]
+        # while text and text[-1] in " \n\t\r.": text = text[:-1]
+        return text or ""
 
             
 

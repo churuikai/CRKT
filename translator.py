@@ -25,18 +25,21 @@ class Translator(QThread):
 
         completion_stream = openai_request(self.text, self.api_key, self.base_url, self.default_headers, self.model, self.prompt, Structured=False)
         response_content = ""
+        n = 0
         for chunk in completion_stream:
           try:
-            if chunk.choices[0].delta.content:
-              response_content += chunk.choices[0].delta.content
+            response_content += chunk.choices[0].delta.content or ""
+            if n % 3 == 0:
               self.signal.emit(response_content)
+            n += 1
           except Exception as e:
             print(e)
             print(chunk)
         print(f"Translated text\n----{response_content}\n----")
+        self.signal.emit(response_content)
         self.__class__.cache.set(self.text, response_content)
-        # self.signal.emit(res)
       except Exception as e:
         print(e)
         self.signal.emit(f'@An error occurred:{str(e)}\n ')
+        
 
