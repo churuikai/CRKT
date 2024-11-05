@@ -77,7 +77,7 @@ class TranslatorApp(QApplication):
 5. 注意，如果是单个单词或短语，你可以精炼地道的解释该单词/短语的含义，给出音标和简单例证。
 6. 如果是代码或注释，解释代码含义或补全代码''')
         if not self.settings.contains("model"):
-            self.settings.setValue("model", "gpt-3.5-turbo-0125")
+            self.settings.setValue("model", "gpt-4o-mini")
         if not self.settings.contains("api_headers"):
             self.settings.setValue("api_headers", '{"x-foo": "true"}')
         if not self.settings.contains("api_url"):
@@ -112,8 +112,6 @@ class TranslatorApp(QApplication):
                 self.translator_window.close()
                 QMessageBox.critical(None, "Error", translated_text)
                 return
-            print(f"Translated text: {translated_text}")
-
             self.translator_window.update_html_content(translated_text)
             
         except Exception as e:
@@ -162,7 +160,7 @@ class TranslatorApp(QApplication):
     def select_model(self):
         try:
             models = ["gpt-4o-mini", "gpt-3.5-turbo-0125", "gpt-3.5-turbo"]
-            model = self.settings.value("model", "gpt-3.5-turbo")
+            model = self.settings.value("model", "gpt-4o-mini")
             model, ok = QInputDialog.getItem(None, " ", "Model", models, models.index(model), False, flags = Qt.WindowCloseButtonHint | Qt.WindowTitleHint | Qt.WindowStaysOnTopHint)
             if ok:
                 self.settings.setValue("model", model) 

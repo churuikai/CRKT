@@ -33,7 +33,7 @@ class Translator(QThread):
           except Exception as e:
             print(e)
             print(chunk)
-
+        print(f"Translated text\n----{response_content}\n----")
         self.__class__.cache.set(self.text, response_content)
         # self.signal.emit(res)
       except Exception as e:
