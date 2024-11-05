@@ -26,7 +26,7 @@
 
 ## 1. 安装
 
-下载 [CRKT.zip](https://github.com/churuikai/CRKT/releases/tag/v2) ，在合适位置解压。启动入口为`crkt.exe`，启动后右下角托盘出现图标。
+下载 [CRKT.zip](https://github.com/churuikai/CRKT/releases) ，在合适位置解压。启动入口为`crkt.exe`，启动后右下角托盘出现图标。
 
 ## 2. 配置
 
@@ -68,6 +68,8 @@
 ##### 基础
 
 选中文本后双击`ctrl`，弹出翻译框。
+
+选中文本后双击`shift`，暂存选中文本，后续双击`ctrl`会合并先前文本一同翻译。
 
 翻译框内可 `ctrl`+`滚轮` 进行字体大小缩放。
 
