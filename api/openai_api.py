@@ -109,7 +109,7 @@ def parse_block_code(element: MarkdownElement):
     return f"```\n{element.content.strip('```').strip()}\n```\n\n"
 
 
-def request(text:str, api_key, base_url, default_headers, model, prompt, Structured=False, stream=True):
+def request(text:str, api_key, base_url, default_headers, model, prompt:str, Structured=False, stream=True):
     assert api_key, "API Key is required."
     assert base_url, "API URL is required."
     assert default_headers, "API Headers is required."
@@ -120,7 +120,8 @@ def request(text:str, api_key, base_url, default_headers, model, prompt, Structu
     if not Structured:
         completion_stream = client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": prompt}, {"role": "user", "content": text}],
+            # messages=[{"role": "system", "content": prompt}, {"role": "user", "content": text}],
+            messages=[{"role": "user", "content": prompt.format(selected_text=text)}],
             stream=stream,
         )
         if stream:

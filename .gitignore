@@ -8,3 +8,5 @@ test.py
 __pycache__/
 *.spec
 *.pkl
+vditor/
+index/
