@@ -69,7 +69,7 @@
 
 选中文本后双击`ctrl`，弹出翻译框。
 
-选中文本后双击`shift`，暂存选中文本，后续双击`ctrl`会合并先前文本一同翻译。
+双击`shift`暂存选中文本，暂存区内可二次编辑。这种情况下双击`ctrl`会合并暂存区文本一同翻译。
 
 翻译框内可 `ctrl`+`滚轮` 进行字体大小缩放。
 
@@ -85,4 +85,6 @@
 ![2](https://github.com/user-attachments/assets/82c5fc45-d018-4299-8bf7-602e7437c6cb)
 ![1](https://github.com/user-attachments/assets/88a319b0-0f65-427d-b7ab-9fdb388e5eaa)
 ![3](https://github.com/user-attachments/assets/99cc16c9-3287-435d-9994-536b94771876)
+![image](https://github.com/user-attachments/assets/65cac8e0-84a5-4fc9-8edf-26de9d04456f)
+
 
