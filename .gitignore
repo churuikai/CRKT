@@ -1,4 +1,5 @@
 *.ini
+*.json
 dist/
 build/
 *.zip
@@ -8,5 +9,8 @@ test.py
 __pycache__/
 *.spec
 *.pkl
+*.pyd
 vditor/
 index/
+data/
+pyqt5env/

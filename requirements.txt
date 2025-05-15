@@ -1,0 +1,9 @@
+PyQt5
+PyQtWebEngine
+PyQt5-tools
+openai
+pynput
+pywin32
+uiautomation
+pyperclip
+nuitka

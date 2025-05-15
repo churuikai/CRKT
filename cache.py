@@ -2,7 +2,7 @@ import time
 import pickle
 
 class Cache():
-    def __init__(self, path='cache.pkl', max_size=1000, frequency=20):
+    def __init__(self, path='data/cache.pkl', max_size=1000, frequency=20):
         print("Cache loaded")
         # 缓存文件路径
         self.path = path
