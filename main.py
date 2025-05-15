@@ -155,18 +155,7 @@ class TranslatorApp(QApplication):
     def _init_icon(self):
         """初始化图标"""
         icon_path = "icon.png"  # 确保icon.png在脚本/EXE同目录下
-        if hasattr(sys, '_MEIPASS'):  # PyInstaller临时文件夹
-            icon_path = os.path.join(sys._MEIPASS, icon_path)
-        elif not os.path.exists(icon_path):  # 如果非打包状态下本地路径不存在
-            # 尝试向上一级目录查找（例如从src子文件夹运行时）
-            icon_path_alt = os.path.join("..", icon_path)
-            if os.path.exists(icon_path_alt):
-                icon_path = icon_path_alt
-            else:
-                QMessageBox.critical(None, "错误", f"托盘图标 {icon_path} 未找到！")
-                sys.exit(1)
-                return False
-        
+ 
         if not os.path.exists(icon_path):  # 最终检查
             QMessageBox.critical(None, "错误", f"托盘图标 {icon_path} 最终未找到！")
             sys.exit(1)
