@@ -4,10 +4,11 @@ from api import openai_request
 
 class Translator(QThread):
     signal = pyqtSignal(str)
-    cache = Cache()
+    cache:Cache = None
     
     def __init__(self, text:str, api_key=None, base_url=None, model="gpt-4.1-nano", prompt="Translate the following text to Chinese:"):
         super().__init__()
+        assert self.cache is not None, "Cache not initialized. Please set Translator.cache first."
         self.text = text
         self.api_key = api_key
         self.base_url = base_url

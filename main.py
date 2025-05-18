@@ -7,25 +7,34 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QSettings, Qt
-from translator import Translator  # 假设这些文件在同一目录或PYTHONPATH中
+from translator import Translator
 from listener import Listener
 from show import DisplayWindow
 from settings_dialog import SettingsDialog
+from cache import Cache
 
 class TranslatorApp(QApplication):
-    # Windows自启动注册表路径
     REG_RUN_PATH = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
-    APP_NAME_REG = "CRKT"  # 注册表项的唯一名称
+    APP_NAME_REG = "CRKT"
     
     def __init__(self, sys_argv):
         super().__init__(sys_argv)
         self.setQuitOnLastWindowClosed(False)
         
-        # 初始化配置
-        if not os.path.exists("data"):
-            os.makedirs("data")
-        self.config_path = "data/config.json"
+        # 获取应用程序所在的目录，确保使用绝对路径
+        self.app_dir = self._get_app_directory()
+        
+        # 初始化配置和数据目录
+        self.data_dir = os.path.join(self.app_dir, "data")
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+        self.config_path = os.path.join(self.data_dir, "config.json")
+        self.cache_path = os.path.join(self.data_dir, "cache.pkl")
+        self.icon_path = os.path.join(self.app_dir, "icon.png")
+        
         self.config = self._load_config()
+        # 初始化缓存
+        Translator.cache = Cache(self.cache_path)
         
         # 翻译线程
         self.translator = None
@@ -35,15 +44,24 @@ class TranslatorApp(QApplication):
         
         # 初始化UI组件
         self._init_components()
-        
+    
+    def _get_app_directory(self):
+        """获取应用程序所在目录"""
+        if getattr(sys, 'frozen', False):
+            # PyInstaller创建的可执行文件
+            return os.path.dirname(sys.executable)
+        else:
+            # 常规Python脚本
+            return os.path.dirname(os.path.abspath(__file__))
+    
     def _load_config(self):
         """加载JSON配置文件"""
         default_config = {
             "skills": [
                 {
-                    "name": "通用翻译",
+                    "name": "通用",
                     "prompt": (
-                        "你将作为一个专业的翻译助手，任务是将文本从英文翻译成中文。\n"
+                        "你将作为一个专业的翻译助手，任务是将文本翻译成中文；但如果所给文本是中文，则翻译为学术且地道的英文。\n"
                         "翻译时需要遵循以下要求：\n"
                         "1. 准确性：确保翻译内容的准确性，保留专业术语和专有名词，用反引号`标出。\n"
                         "2. 格式要求：使用 Markdown 语法输出内容。\n"
@@ -154,13 +172,11 @@ class TranslatorApp(QApplication):
         
     def _init_icon(self):
         """初始化图标"""
-        icon_path = "icon.png"  # 确保icon.png在脚本/EXE同目录下
- 
-        if not os.path.exists(icon_path):  # 最终检查
-            QMessageBox.critical(None, "错误", f"托盘图标 {icon_path} 最终未找到！")
+        if not os.path.exists(self.icon_path):  # 最终检查
+            QMessageBox.critical(None, "错误", f"托盘图标 {self.icon_path} 最终未找到！")
             sys.exit(1)
             return False
-        self.setWindowIcon(QIcon(icon_path))
+        self.setWindowIcon(QIcon(self.icon_path))
         return True
         
     def _init_tray_icon(self):
@@ -251,6 +267,20 @@ class TranslatorApp(QApplication):
         skills = self.config.get("skills", [])
         selected_skill_name = self.config.get("selected_skill", "")
         
+        # 创建一个保存回调函数，用于实时保存设置
+        def save_settings(config):
+            # 更新配置
+            self.config["api_profiles"] = config.get("api_profiles", [])
+            self.config["selected_api"] = config.get("selected_api", "")
+            self.config["models"] = config.get("models", [])
+            self.config["selected_model"] = config.get("selected_model", "")
+            self.config["skills"] = config.get("skills", [])
+            self.config["selected_skill"] = config.get("selected_skill", "")
+            
+            # 确保根据新选择的技能更新prompt
+            self._sync_selected_skill_prompt()
+            self._save_config()
+        
         dlg = SettingsDialog(
             api_profiles=api_profiles,
             selected_api=selected_api,
@@ -258,23 +288,14 @@ class TranslatorApp(QApplication):
             selected_model=selected_model,
             skills=skills,
             selected_skill_name=selected_skill_name,
-            parent=None 
+            parent=None,
+            save_callback=save_settings
         )
         
         dlg.skill_selected.connect(self.on_skill_selected)
         
         if dlg.exec_() == SettingsDialog.Accepted:
-            self.config["api_profiles"] = dlg.get_api_profiles()
-            self.config["selected_api"] = dlg.get_selected_api()
-            self.config["models"] = dlg.get_models()
-            self.config["selected_model"] = dlg.get_selected_model()
-            self.config["skills"] = dlg.get_skills()
-            self.config["selected_skill"] = dlg.get_selected_skill_name()
-            
-            self._sync_selected_skill_prompt()  # 确保根据新选择的技能更新prompt
-            self._save_config()
-            
-            QMessageBox.information(None, "成功", "设置已更新！")
+            pass
             
     def on_skill_selected(self, chosen_skill_dict):
         """当选择技能时触发 (from SettingsDialog)"""
@@ -303,7 +324,6 @@ class TranslatorApp(QApplication):
     def toggle_startup(self, checked):
         """切换开机自启动功能，主要适用于Windows EXE。"""
         # 首先在设置中存储用户的意图
-        # 这确保即使自动设置失败或不适用，配置也能反映所需状态
         self.config["start_on_boot"] = checked
         self._save_config()
         
@@ -311,9 +331,8 @@ class TranslatorApp(QApplication):
         is_frozen = getattr(sys, 'frozen', False)  # 如果作为EXE运行（例如PyInstaller）则为True
         
         if is_windows and is_frozen:
-            # 理想情况：Windows且作为EXE运行
+            # 使用绝对路径确保自启动正常工作
             app_path_for_startup = sys.executable  # EXE的完整路径
-            # 注册表Run键中的路径如果包含空格通常会被引号括起来
             registry_value_path = f'"{app_path_for_startup}"'
             try:
                 settings_reg = QSettings(self.REG_RUN_PATH, QSettings.NativeFormat)
@@ -332,9 +351,6 @@ class TranslatorApp(QApplication):
                 self._save_config()
         else:
             # 非理想情况（非Windows或非EXE），提供信息
-            # 复选框状态（由checked参数驱动）和配置设置（已在上面设置）
-            # 将反映用户的选择，但不会进行自动设置
-            # 用户会得到关于手动设置的信息
             message = ""
             if not is_windows:
                 message = ("自动设置开机自启动功能目前仅支持 Windows 系统。\n"
@@ -346,8 +362,6 @@ class TranslatorApp(QApplication):
                           "若希望此脚本开机运行，请手动创建任务计划或启动脚本。")
             
             QMessageBox.information(None, "提示", message)
-            # 无需在此恢复复选框或设置，因为用户的意图已被记录
-            # 菜单项文本"(仅Win EXE)"已经暗示了限制
     
     def append_text(self, text):
         """添加文本到暂存区"""
@@ -407,9 +421,8 @@ class TranslatorApp(QApplication):
             try:
                 self.translator.terminate() 
                 self.translator.wait(500) 
-                if self.translator.isRunning():  # 终止并等待后仍在运行
+                if self.translator.isRunning():
                     print("警告: 翻译线程未能立即终止。")
-                # 尝试断开信号连接，以防它延迟发出
                 try:
                     self.translator.signal.disconnect(self.show_translation)
                 except TypeError:
@@ -426,11 +439,8 @@ class TranslatorApp(QApplication):
         try:
             if translated_text.startswith('@An error occurred:'):
                 error_msg = translated_text.replace('@An error occurred:', '').strip()
-                # 不在这里关闭display_window，让用户看到错误或重试
-                # self.display_window.close() 
                 QMessageBox.critical(None, "翻译错误", error_msg)
-                # 如果窗口打开，也在显示窗口中更新错误
-                if self.display_window.isVisible() or self.user_minimized:  # user_minimized可能意味着它保存着内容
+                if self.display_window.isVisible() or self.user_minimized:
                     self.display_window.update_html_content(f'<p style="color: red;">翻译错误: {error_msg}</p>')
             else:
                 if self.user_minimized:
@@ -440,8 +450,6 @@ class TranslatorApp(QApplication):
         except Exception as e:
             self._handle_error(f"显示翻译结果时出错: {e}")
         finally:
-            # self.translator应在_cancel_previous_translation中清除或在线程完成后清除
-            # 如果从信号调用，线程已完成
             self.translator = None
             
     def quit_app(self):
@@ -466,13 +474,32 @@ class TranslatorApp(QApplication):
     def _handle_error(self, error_msg):
         """统一错误处理"""
         print(f"错误: {error_msg}")
-        # 避免在这里直接关闭display_window，让调用者决定或在其中显示错误
         QMessageBox.critical(None, "应用程序错误", str(error_msg))
 
 if __name__ == "__main__":
-    QApplication.setApplicationName("CRKTranslator")
-    QApplication.setOrganizationName("CRK")  # 用于QSettings的默认位置（如果路径不明确）
-    app = TranslatorApp(sys.argv)
-    # 确保退出时清理托盘图标，尽管QApplication.quit()通常处理它
-    app.aboutToQuit.connect(app.tray_icon.hide) 
-    sys.exit(app.exec_())
+    try:
+        QApplication.setApplicationName("CRKTranslator")
+        QApplication.setOrganizationName("CRK")
+        app = TranslatorApp(sys.argv)
+        app.aboutToQuit.connect(app.tray_icon.hide)
+        sys.exit(app.exec_())
+    except Exception as e:
+        import traceback
+        error_msg = f"启动错误: {e}\n{traceback.format_exc()}"
+        print(error_msg)
+        import time
+        time.sleep(10)  # 等待10秒以便查看错误信息
+        
+        # 写入日志
+        with open(os.path.join(os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) 
+                 else os.path.dirname(os.path.abspath(__file__)), "startup_error.log"), "w") as f:
+            f.write(error_msg)
+            
+        # 显示错误消息
+        if not getattr(sys, 'frozen', False):  # 在脚本模式下直接打印
+            print(error_msg)
+        else:
+            # 在EXE模式下显示消息框
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(None, "启动错误", error_msg)
+        sys.exit(1)

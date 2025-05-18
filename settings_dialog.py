@@ -3,7 +3,8 @@ from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
     QListWidget, QWidget, QTabWidget, QGroupBox, QFormLayout, QInputDialog,
     QMessageBox, QListWidgetItem, QSplitter, QTableWidget,
-    QTableWidgetItem, QHeaderView, QPlainTextEdit, QStyledItemDelegate
+    QTableWidgetItem, QHeaderView, QPlainTextEdit, QStyledItemDelegate, 
+    QAbstractItemView
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QTextOption
@@ -34,7 +35,8 @@ class SettingsDialog(QDialog):
                 selected_model="", 
                 skills=None, 
                 selected_skill_name="",
-                parent=None):
+                parent=None,
+                save_callback=None):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.resize(850, 600)
@@ -46,21 +48,22 @@ class SettingsDialog(QDialog):
         self.selected_model = selected_model
         self.skills = skills if skills else []
         self.selected_skill_name = selected_skill_name
+        self.save_callback = save_callback  # 保存配置的回调函数
         
         # 定义配色
         self.colors = {
-            "primary": "#82529d",         # 主色调 - 紫色
-            "primary_light": "#a371ba",   # 浅紫色 (按钮)
-            "light_bg": "#f2f0fb",        # 浅色背景
-            "lighter_bg": "#dfddf5",      # 更浅色背景
-            "white": "#ffffff",           # 白色
-            "text": "#333333",            # 文字颜色
-            "light_text": "#666666",      # 浅色文字
-            "border": "#d0c9e3",          # 边框颜色
-            "selected_bg": "#e8e6f8",     # 选中背景
+            "primary": "#82529d",        
+            "primary_light": "#a371ba",   
+            "light_bg": "#f2f0fb",        
+            "lighter_bg": "#dfddf5",      
+            "white": "#ffffff",           
+            "text": "#333333",            
+            "light_text": "#666666",      
+            "border": "#d0c9e3",          
+            "selected_bg": "#e8e6f8"     
         }
         
-        # 设置样式表
+        # 应用样式表
         self._apply_stylesheet()
         
         # 创建界面
@@ -94,6 +97,7 @@ class SettingsDialog(QDialog):
                 background-color: {self.colors["white"]};
                 border-bottom-color: {self.colors["white"]};
                 color: {self.colors["primary"]};
+                font-weight: bold;
             }}
             QTabBar::tab:hover:!selected {{
                 background-color: {self.colors["lighter_bg"]};
@@ -109,6 +113,10 @@ class SettingsDialog(QDialog):
             QPushButton:hover {{
                 background-color: {self.colors["primary"]};
             }}
+            QPushButton:disabled {{
+                background-color: #cccccc;
+                color: #666666;
+            }}
             QLineEdit, QPlainTextEdit {{
                 padding: 8px;
                 border: 1px solid {self.colors["border"]};
@@ -123,10 +131,14 @@ class SettingsDialog(QDialog):
                 border-radius: 4px;
                 background-color: {self.colors["white"]};
                 alternate-background-color: {self.colors["light_bg"]};
+                selection-background-color: {self.colors["selected_bg"]};
             }}
             QTableWidget::item {{
-                background-color: transparent;
-                color: {self.colors["text"]};
+                padding: 4px;
+            }}
+            QTableWidget::item:selected {{
+                background-color: {self.colors["selected_bg"]};
+                color: {self.colors["primary"]};
             }}
             QHeaderView::section {{
                 background-color: {self.colors["light_bg"]};
@@ -140,9 +152,11 @@ class SettingsDialog(QDialog):
                 margin-top: 16px;
                 padding-top: 16px;
                 color: {self.colors["primary"]};
+                font-weight: bold;
             }}
             QSplitter::handle {{
                 background-color: {self.colors["lighter_bg"]};
+                width: 2px;
             }}
         """)
         
@@ -163,20 +177,29 @@ class SettingsDialog(QDialog):
         
         main_layout.addWidget(self.tab_widget)
         
-        # 底部按钮
-        button_layout = QHBoxLayout()
+        # 底部布局：状态信息和按钮
+        bottom_layout = QHBoxLayout()
+        
+        # 状态信息（靠左）
+        self.status_label = QLabel("准备就绪")
+        self.status_label.setStyleSheet(f"color: {self.colors['light_text']};")
+        bottom_layout.addWidget(self.status_label, 1)  # 设置拉伸因子为1
+        
+        # 按钮（靠右）
         self.ok_button = QPushButton("确定")
         self.cancel_button = QPushButton("取消")
+        bottom_layout.addWidget(self.ok_button)
+        bottom_layout.addWidget(self.cancel_button)
         
-        button_layout.addStretch()
-        button_layout.addWidget(self.ok_button)
-        button_layout.addWidget(self.cancel_button)
-        
-        main_layout.addLayout(button_layout)
+        main_layout.addLayout(bottom_layout)
         
         # 绑定事件
         self.ok_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
+        
+    def update_status(self, message):
+        """更新状态信息"""
+        self.status_label.setText(message)
         
     def _create_api_tab(self):
         """创建API设置标签页"""
@@ -186,7 +209,6 @@ class SettingsDialog(QDialog):
         
         # API管理区域
         api_splitter = QSplitter(Qt.Horizontal)
-        api_splitter.setContentsMargins(0, 0, 0, 0)
         
         # 左侧API列表
         api_list_widget = QWidget()
@@ -198,6 +220,7 @@ class SettingsDialog(QDialog):
         
         self.api_list = QListWidget()
         self.api_list.setAlternatingRowColors(True)
+        self.api_list.setSelectionMode(QAbstractItemView.SingleSelection)
         api_list_inner_layout.addWidget(self.api_list)
         
         # API列表按钮
@@ -219,6 +242,7 @@ class SettingsDialog(QDialog):
         
         api_edit_group = QGroupBox("API 配置详情")
         api_edit_inner_layout = QFormLayout(api_edit_group)
+        api_edit_inner_layout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
         
         self.api_name_edit = QLineEdit()
         self.api_key_edit = QPlainTextEdit()
@@ -229,12 +253,10 @@ class SettingsDialog(QDialog):
         api_edit_inner_layout.addRow("API 密钥:", self.api_key_edit)
         api_edit_inner_layout.addRow("基础 URL:", self.base_url_edit)
         
-        # 保存API按钮
-        save_btn_layout = QHBoxLayout()
-        self.save_api_btn = QPushButton("保存")
-        save_btn_layout.addStretch()
-        save_btn_layout.addWidget(self.save_api_btn)
-        api_edit_inner_layout.addRow("", save_btn_layout)
+        # 添加自动保存提示
+        auto_save_label = QLabel("提示: 修改内容将自动保存")
+        auto_save_label.setStyleSheet(f"color: {self.colors['light_text']}; font-style: italic;")
+        api_edit_inner_layout.addRow("", auto_save_label)
         
         api_edit_layout.addWidget(api_edit_group)
         
@@ -250,7 +272,11 @@ class SettingsDialog(QDialog):
         self.remove_api_btn.clicked.connect(self._remove_api)
         self.select_api_btn.clicked.connect(self._select_api)
         self.api_list.currentItemChanged.connect(self._api_selected)
-        self.save_api_btn.clicked.connect(self._save_current_api)
+        
+        # 实时保存输入变化
+        self.api_name_edit.textChanged.connect(self._update_current_api)
+        self.api_key_edit.textChanged.connect(self._update_current_api)
+        self.base_url_edit.textChanged.connect(self._update_current_api)
         
         # 加载API列表
         self._load_api_profiles()
@@ -268,10 +294,15 @@ class SettingsDialog(QDialog):
         model_layout.setContentsMargins(10, 15, 10, 10)
         
         # 显示当前选中模型
-        if self.selected_model:
-            current_model_label = QLabel(f"当前模型: <b>{self.selected_model}</b>")
-            current_model_label.setStyleSheet(f"color: {self.colors['primary']};")
-            model_layout.addWidget(current_model_label)
+        model_header = QHBoxLayout()
+        current_model_label = QLabel("当前选中模型:")
+        current_model_value = QLabel(self.selected_model)
+        current_model_value.setStyleSheet(f"font-weight: bold; color: {self.colors['primary']};")
+        
+        model_header.addWidget(current_model_label)
+        model_header.addWidget(current_model_value)
+        model_header.addStretch()
+        model_layout.addLayout(model_header)
         
         # 模型列表组
         model_group = QGroupBox("可用模型")
@@ -279,6 +310,7 @@ class SettingsDialog(QDialog):
         
         self.model_list = QListWidget()
         self.model_list.setAlternatingRowColors(True)
+        self.model_list.setSelectionMode(QAbstractItemView.SingleSelection)
         model_list_layout.addWidget(self.model_list)
         
         # 模型按钮组
@@ -310,10 +342,15 @@ class SettingsDialog(QDialog):
         skill_layout.setContentsMargins(10, 15, 10, 10)
         
         # 显示当前选中技能
-        if self.selected_skill_name:
-            current_skill_label = QLabel(f"当前技能: <b>{self.selected_skill_name}</b>")
-            current_skill_label.setStyleSheet(f"color: {self.colors['primary']};")
-            skill_layout.addWidget(current_skill_label)
+        skill_header = QHBoxLayout()
+        current_skill_label = QLabel("当前选中技能:")
+        current_skill_value = QLabel(self.selected_skill_name)
+        current_skill_value.setStyleSheet(f"font-weight: bold; color: {self.colors['primary']};")
+        
+        skill_header.addWidget(current_skill_label)
+        skill_header.addWidget(current_skill_value)
+        skill_header.addStretch()
+        skill_layout.addLayout(skill_header)
         
         # 技能表格
         self.skill_table = QTableWidget()
@@ -324,8 +361,11 @@ class SettingsDialog(QDialog):
         self.skill_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.skill_table.setWordWrap(True)
         self.skill_table.setAlternatingRowColors(True)
+        self.skill_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.skill_table.setSelectionMode(QAbstractItemView.SingleSelection)
+        
+        # 为提示词列设置多行文本委托
         self.skill_table.setItemDelegateForColumn(1, MultiLineDelegate(self.skill_table))
-        self.skill_table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.SelectedClicked)
         
         skill_layout.addWidget(self.skill_table)
         
@@ -351,6 +391,7 @@ class SettingsDialog(QDialog):
         self.remove_skill_btn.clicked.connect(self._remove_skill)
         self.select_skill_btn.clicked.connect(self._select_skill)
         self.skill_table.itemChanged.connect(self._on_skill_item_changed)
+        self.skill_table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed)
         
         # 加载技能列表
         self._load_skills()
@@ -363,15 +404,81 @@ class SettingsDialog(QDialog):
         self.api_list.clear()
         for profile in self.api_profiles:
             item = QListWidgetItem(profile["name"])
-            # 为当前选中的API添加标记
             if profile["name"] == self.selected_api:
-                item.setSelected(True)
                 item.setForeground(QColor(self.colors["primary"]))
-                # 载入选中的API配置到编辑区
+                item.setSelected(True)
+            self.api_list.addItem(item)
+            
+    def _api_selected(self, current, previous):
+        """当选择API列表中的项目时，更新编辑区"""
+        if not current:
+            self.api_name_edit.clear()
+            self.api_key_edit.clear()
+            self.base_url_edit.clear()
+            return
+            
+        name = current.text()
+        for profile in self.api_profiles:
+            if profile["name"] == name:
+                # 更新字段但阻止触发更新事件
+                self.api_name_edit.blockSignals(True)
+                self.api_key_edit.blockSignals(True)
+                self.base_url_edit.blockSignals(True)
+                
                 self.api_name_edit.setText(profile["name"])
                 self.api_key_edit.setPlainText(profile["api_key"])
                 self.base_url_edit.setText(profile["base_url"])
-            self.api_list.addItem(item)
+                
+                self.api_name_edit.blockSignals(False)
+                self.api_key_edit.blockSignals(False)
+                self.base_url_edit.blockSignals(False)
+                break
+    
+    def _update_current_api(self):
+        """实时更新当前编辑的API配置"""
+        current_item = self.api_list.currentItem()
+        if not current_item:
+            return
+            
+        old_name = current_item.text()
+        new_name = self.api_name_edit.text().strip()
+        api_key = self.api_key_edit.toPlainText().strip()
+        base_url = self.base_url_edit.text().strip()
+        
+        # 名称不能为空
+        if not new_name:
+            return
+            
+        # 如果名称变了，检查重名
+        if old_name != new_name:
+            # 检查是否有重名冲突
+            for i in range(self.api_list.count()):
+                if i != self.api_list.currentRow() and self.api_list.item(i).text() == new_name:
+                    # 恢复原名称并提示用户
+                    self.api_name_edit.blockSignals(True)
+                    self.api_name_edit.setText(old_name)
+                    self.api_name_edit.blockSignals(False)
+                    self.update_status(f"API名称 '{new_name}' 已存在")
+                    return
+        
+        # 更新配置
+        for profile in self.api_profiles:
+            if profile["name"] == old_name:
+                profile["name"] = new_name
+                profile["api_key"] = api_key
+                profile["base_url"] = base_url
+                
+                # 如果修改的是当前选中的API配置，更新selected_api
+                if old_name == self.selected_api:
+                    self.selected_api = new_name
+                
+                # 更新列表项
+                current_item.setText(new_name)
+                self.update_status("API配置已更新")
+                
+                # 保存配置
+                self._save_config()
+                break
     
     def _add_api(self):
         """添加新的API配置"""
@@ -383,7 +490,7 @@ class SettingsDialog(QDialog):
         if ok and name.strip():
             # 检查重名
             if any(profile["name"] == name for profile in self.api_profiles):
-                QMessageBox.warning(self, "错误", "该API配置名称已存在！")
+                self.update_status(f"API名称 '{name}' 已存在")
                 return
                 
             # 添加新配置
@@ -395,25 +502,32 @@ class SettingsDialog(QDialog):
             self.api_profiles.append(new_profile)
             
             # 更新列表
+            self.api_list.blockSignals(True)
             item = QListWidgetItem(name)
             self.api_list.addItem(item)
             self.api_list.setCurrentItem(item)
+            self.api_list.blockSignals(False)
             
             # 清空编辑区，准备编辑新配置
             self.api_name_edit.setText(name)
             self.api_key_edit.clear()
             self.base_url_edit.setText("https://api.openai.com/v1/")
+            
+            self.update_status(f"已添加新API配置: {name}")
+            
+            # 保存配置
+            self._save_config()
     
     def _remove_api(self):
         """删除选中的API配置"""
         current_item = self.api_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个API配置！")
+            self.update_status("请先选择一个API配置")
             return
             
         name = current_item.text()
         if len(self.api_profiles) <= 1:
-            QMessageBox.warning(self, "警告", "至少需要保留一个API配置！")
+            self.update_status("至少需要保留一个API配置")
             return
             
         # 删除配置
@@ -424,19 +538,20 @@ class SettingsDialog(QDialog):
         if name == self.selected_api and self.api_profiles:
             self.selected_api = self.api_profiles[0]["name"]
             
-            # 更新编辑区
-            self.api_name_edit.setText(self.api_profiles[0]["name"])
-            self.api_key_edit.setPlainText(self.api_profiles[0]["api_key"])
-            self.base_url_edit.setText(self.api_profiles[0]["base_url"])
-            
-            # 更新列表选中状态
+        # 如果还有项目，选择第一项
+        if self.api_list.count() > 0:
             self.api_list.setCurrentRow(0)
+        
+        self.update_status(f"已删除API配置: {name}")
+        
+        # 保存配置
+        self._save_config()
             
     def _select_api(self):
         """选择当前API配置为默认"""
         current_item = self.api_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个API配置！")
+            self.update_status("请先选择一个API配置")
             return
             
         name = current_item.text()
@@ -450,59 +565,10 @@ class SettingsDialog(QDialog):
             else:
                 list_item.setForeground(QColor(self.colors["text"]))
                 
-        # 通知用户
-        QMessageBox.information(self, "成功", f"已将 {name} 设为默认API！")
-    
-    def _save_current_api(self):
-        """保存当前编辑区的API配置"""
-        current_item = self.api_list.currentItem()
-        if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个API配置！")
-            return
-            
-        old_name = current_item.text()
-        new_name = self.api_name_edit.text().strip()
-        api_key = self.api_key_edit.toPlainText().strip()
-        base_url = self.base_url_edit.text().strip()
+        self.update_status(f"已将 {name} 设为默认API")
         
-        if not new_name:
-            QMessageBox.warning(self, "警告", "API配置名称不能为空！")
-            return
-            
-        # 如果名称变了，检查重名
-        if old_name != new_name and any(p["name"] == new_name for p in self.api_profiles):
-            QMessageBox.warning(self, "错误", "该API配置名称已存在！")
-            return
-            
-        # 更新配置
-        for profile in self.api_profiles:
-            if profile["name"] == old_name:
-                profile["name"] = new_name
-                profile["api_key"] = api_key
-                profile["base_url"] = base_url
-                break
-                
-        # 如果修改的是当前选中的API配置，更新selected_api
-        if old_name == self.selected_api:
-            self.selected_api = new_name
-            
-        # 更新列表项
-        current_item.setText(new_name)
-        
-        QMessageBox.information(self, "成功", "API配置已保存！")
-    
-    def _api_selected(self, current, previous):
-        """当选择API列表中的项目时，更新编辑区"""
-        if not current:
-            return
-            
-        name = current.text()
-        for profile in self.api_profiles:
-            if profile["name"] == name:
-                self.api_name_edit.setText(profile["name"])
-                self.api_key_edit.setPlainText(profile["api_key"])
-                self.base_url_edit.setText(profile["base_url"])
-                break
+        # 保存配置
+        self._save_config()
     
     # 模型相关方法
     def _load_models(self):
@@ -510,10 +576,9 @@ class SettingsDialog(QDialog):
         self.model_list.clear()
         for model in self.models:
             item = QListWidgetItem(model)
-            # 为当前选中的模型添加标记
             if model == self.selected_model:
-                item.setSelected(True)
                 item.setForeground(QColor(self.colors["primary"]))
+                item.setSelected(True)
             self.model_list.addItem(item)
     
     def _add_model(self):
@@ -526,7 +591,7 @@ class SettingsDialog(QDialog):
         if ok and model_name.strip():
             # 检查重名
             if model_name in self.models:
-                QMessageBox.warning(self, "错误", "该模型已存在！")
+                self.update_status(f"模型名称 '{model_name}' 已存在")
                 return
                 
             # 添加模型
@@ -535,17 +600,22 @@ class SettingsDialog(QDialog):
             # 更新列表
             item = QListWidgetItem(model_name)
             self.model_list.addItem(item)
+            
+            self.update_status(f"已添加新模型: {model_name}")
+            
+            # 保存配置
+            self._save_config()
     
     def _remove_model(self):
         """删除选中的模型"""
         current_item = self.model_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个模型！")
+            self.update_status("请先选择一个模型")
             return
             
         model_name = current_item.text()
         if len(self.models) <= 1:
-            QMessageBox.warning(self, "警告", "至少需要保留一个模型！")
+            self.update_status("至少需要保留一个模型")
             return
             
         # 删除模型
@@ -555,13 +625,21 @@ class SettingsDialog(QDialog):
         # 如果删除的是当前选中的模型，则更新选中的模型
         if model_name == self.selected_model and self.models:
             self.selected_model = self.models[0]
+            
+        # 更新选择
+        if self.model_list.count() > 0:
             self.model_list.setCurrentRow(0)
+            
+        self.update_status(f"已删除模型: {model_name}")
+        
+        # 保存配置
+        self._save_config()
     
     def _select_model(self):
         """选择当前模型为默认"""
         current_item = self.model_list.currentItem()
         if not current_item:
-            QMessageBox.warning(self, "警告", "请先选择一个模型！")
+            self.update_status("请先选择一个模型")
             return
             
         model_name = current_item.text()
@@ -575,8 +653,10 @@ class SettingsDialog(QDialog):
             else:
                 list_item.setForeground(QColor(self.colors["text"]))
                 
-        # 通知用户
-        QMessageBox.information(self, "成功", f"已将 {model_name} 设为默认模型！")
+        self.update_status(f"已将 {model_name} 设为默认模型")
+        
+        # 保存配置
+        self._save_config()
     
     # 技能相关方法
     def _load_skills(self):
@@ -588,8 +668,8 @@ class SettingsDialog(QDialog):
             name_item = QTableWidgetItem(skill["name"])
             prompt_item = QTableWidgetItem(skill["prompt"])
             
-            name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
-            prompt_item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
+            name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            prompt_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             
             # 为当前选中的技能添加标记
             if skill["name"] == self.selected_skill_name:
@@ -599,6 +679,12 @@ class SettingsDialog(QDialog):
             self.skill_table.setItem(row, 1, prompt_item)
             
         self.skill_table.blockSignals(False)
+        
+        # 选择当前选中的技能行
+        for row in range(self.skill_table.rowCount()):
+            if self.skill_table.item(row, 0).text() == self.selected_skill_name:
+                self.skill_table.selectRow(row)
+                break
     
     def _add_skill(self):
         """添加新技能"""
@@ -645,16 +731,17 @@ class SettingsDialog(QDialog):
             prompt = prompt_edit.toPlainText().strip()
             
             if not name or not prompt:
-                QMessageBox.warning(self, "警告", "技能名称和提示词不能为空！")
+                self.update_status("技能名称和提示词不能为空")
                 return
                 
             # 检查重名
             if any(skill["name"] == name for skill in self.skills):
-                QMessageBox.warning(self, "警告", "技能名称已存在！")
+                self.update_status(f"技能名称 '{name}' 已存在")
                 return
                 
             # 添加新技能
-            self.skills.append({"name": name, "prompt": prompt})
+            new_skill = {"name": name, "prompt": prompt}
+            self.skills.append(new_skill)
             
             # 更新表格
             row = self.skill_table.rowCount()
@@ -663,21 +750,27 @@ class SettingsDialog(QDialog):
             name_item = QTableWidgetItem(name)
             prompt_item = QTableWidgetItem(prompt)
             
-            name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
-            prompt_item.setTextAlignment(Qt.AlignLeft | Qt.AlignTop)
+            name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            prompt_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             
             self.skill_table.setItem(row, 0, name_item)
             self.skill_table.setItem(row, 1, prompt_item)
+            self.skill_table.selectRow(row)
+            
+            self.update_status(f"已添加新技能: {name}")
+            
+            # 保存配置
+            self._save_config()
     
     def _remove_skill(self):
         """删除选中的技能"""
         row = self.skill_table.currentRow()
         if row < 0:
-            QMessageBox.warning(self, "警告", "请先选择一个技能！")
+            self.update_status("请先选择一个技能")
             return
             
         if len(self.skills) <= 1:
-            QMessageBox.warning(self, "警告", "至少需要保留一个技能！")
+            self.update_status("至少需要保留一个技能")
             return
             
         # 获取技能名称
@@ -694,16 +787,20 @@ class SettingsDialog(QDialog):
             self.selected_skill_name = self.skills[0]["name"]
             self.skill_selected.emit(self.skills[0])
             
-            # 更新表格中第一行的标记
-            if self.skill_table.rowCount() > 0:
-                name_item = self.skill_table.item(0, 0)
-                name_item.setForeground(QColor(self.colors["primary"]))
+        # 如果还有项目，选择第一项
+        if self.skill_table.rowCount() > 0:
+            self.skill_table.selectRow(0)
+            
+        self.update_status(f"已删除技能: {skill_name}")
+        
+        # 保存配置
+        self._save_config()
     
     def _select_skill(self):
         """将当前选中的技能设为默认"""
         row = self.skill_table.currentRow()
         if row < 0:
-            QMessageBox.warning(self, "警告", "请先选择一个技能！")
+            self.update_status("请先选择一个技能")
             return
             
         chosen_skill = self.skills[row]
@@ -712,6 +809,7 @@ class SettingsDialog(QDialog):
         # 更新表格中所有项的颜色
         for r in range(self.skill_table.rowCount()):
             name_item = self.skill_table.item(r, 0)
+            
             if r == row:
                 name_item.setForeground(QColor(self.colors["primary"]))
             else:
@@ -719,9 +817,11 @@ class SettingsDialog(QDialog):
         
         # 发射信号
         self.skill_selected.emit(chosen_skill)
-            
-        # 通知用户
-        QMessageBox.information(self, "成功", f"已将 {chosen_skill['name']} 设为默认技能！")
+        
+        self.update_status(f"已将 {chosen_skill['name']} 设为默认技能")
+        
+        # 保存配置
+        self._save_config()
     
     def _on_skill_item_changed(self, item):
         """技能表格内容变化处理"""
@@ -733,14 +833,22 @@ class SettingsDialog(QDialog):
             # 检测重名
             for r in range(self.skill_table.rowCount()):
                 if r != row and self.skill_table.item(r, 0).text() == new_value:
-                    QMessageBox.warning(self, "警告", "技能名称已存在！")
-                    
                     # 恢复原值
                     old_value = self.skills[row]["name"]
                     self.skill_table.blockSignals(True)
                     item.setText(old_value)
                     self.skill_table.blockSignals(False)
+                    self.update_status(f"技能名称 '{new_value}' 已存在")
                     return
+             
+            # 名称为空检查
+            if not new_value.strip():
+                old_value = self.skills[row]["name"]
+                self.skill_table.blockSignals(True)
+                item.setText(old_value)
+                self.skill_table.blockSignals(False)
+                self.update_status("技能名称不能为空")
+                return
                     
             # 更新技能名称
             old_name = self.skills[row]["name"]
@@ -751,7 +859,33 @@ class SettingsDialog(QDialog):
                 self.selected_skill_name = new_value
                 
         elif column == 1:  # 提示词
+            if not new_value.strip():
+                old_value = self.skills[row]["prompt"]
+                self.skill_table.blockSignals(True)
+                item.setText(old_value)
+                self.skill_table.blockSignals(False)
+                self.update_status("提示词不能为空")
+                return
+                
             self.skills[row]["prompt"] = new_value
+        
+        self.update_status("技能已更新")
+        
+        # 保存配置
+        self._save_config()
+        
+    def _save_config(self):
+        """保存配置到文件"""
+        if self.save_callback and callable(self.save_callback):
+            config = {
+                "api_profiles": self.api_profiles,
+                "selected_api": self.selected_api,
+                "models": self.models,
+                "selected_model": self.selected_model,
+                "skills": self.skills,
+                "selected_skill": self.selected_skill_name
+            }
+            self.save_callback(config)
     
     # 获取数据方法
     def get_api_profiles(self):
