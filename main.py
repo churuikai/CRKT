@@ -12,6 +12,7 @@ from listener import Listener
 from show import DisplayWindow
 from settings_dialog import SettingsDialog
 from cache import Cache
+import re
 
 class TranslatorApp(QApplication):
     REG_RUN_PATH = "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
@@ -34,10 +35,13 @@ class TranslatorApp(QApplication):
         
         self.config = self._load_config()
         # 初始化缓存
-        Translator.cache = Cache(self.cache_path)
+        self.cache = Cache(self.cache_path)
         
         # 翻译线程
         self.translator = None
+        
+        # 设置对话框引用
+        self.settings_dialog = None
         
         # 用户是否手动最小化窗口
         self.user_minimized = False
@@ -61,7 +65,7 @@ class TranslatorApp(QApplication):
                 {
                     "name": "通用",
                     "prompt": (
-                        "你将作为一个专业的翻译助手，任务是将文本翻译成中文；但如果所给文本是中文，则翻译为学术且地道的英文。\n"
+                        "你将作为一个专业的翻译助手，任务是将{source_language}翻译成{target_language}\n"
                         "翻译时需要遵循以下要求：\n"
                         "1. 准确性：确保翻译内容的准确性，保留专业术语和专有名词，用反引号`标出。\n"
                         "2. 格式要求：使用 Markdown 语法输出内容。\n"
@@ -70,7 +74,6 @@ class TranslatorApp(QApplication):
                         "   - '𝑆'换成'S', '𝐹'换成'F', '𝑛'换成'n', 'i'换成i\n"
                         "   - '...' 换成 '\\cdots', '.'换成 '\\cdot'\n"
                         "5. 注意，如果是单个单词或短语，你可以精炼地道的解释该单词/短语的含义，给出音标和简单例证。\n"
-                        "6. 如果是代码或注释，解释代码含义或补全代码\n\n"
                         "不要给出多余输出，直接翻译以下内容：\n{selected_text}"
                     )
                 },
@@ -96,6 +99,7 @@ class TranslatorApp(QApplication):
             "selected_model": "gpt-4.1-nano",
             "shift_listener": True,
             "start_on_boot": False,
+            "target_language": "English",  # 目标语言配置
             "prompt": ""  # 将由selected_skill自动填充
         }
         
@@ -166,6 +170,8 @@ class TranslatorApp(QApplication):
         self.display_window = DisplayWindow()
         # 监听窗口状态改变事件
         self.display_window.windowStateChanged.connect(self.on_window_state_changed)
+        # 监听窗口关闭事件
+        self.display_window.windowClosed.connect(self.on_window_closed)
         
         self.listener = Listener()
         self._init_listener_signals()
@@ -183,6 +189,9 @@ class TranslatorApp(QApplication):
         """创建托盘图标和菜单"""
         self.tray_icon = QSystemTrayIcon(self.windowIcon(), self)
         self.tray_icon.setToolTip("CRK-Translator")
+        
+        # 添加托盘图标点击事件：单击显示/隐藏窗口
+        self.tray_icon.activated.connect(self.on_tray_activated)
         
         # 创建菜单
         self.menu = QMenu()
@@ -241,6 +250,25 @@ class TranslatorApp(QApplication):
         else:
             self.user_minimized = False
     
+    def on_window_closed(self):
+        """处理窗口关闭事件"""
+        # 用户关闭窗口，标记为用户主动隐藏
+        self.user_minimized = True
+        # 中断正在进行的翻译线程
+        self._cancel_previous_translation()
+    
+    def on_tray_activated(self, reason):
+        """托盘图标点击事件：单击显示/隐藏窗口"""
+        if reason == QSystemTrayIcon.Trigger:
+            if self.display_window.isVisible() and not self.display_window.isMinimized():
+                self.display_window.hide()
+                self.user_minimized = True
+            else:
+                self.display_window.showNormal()
+                self.display_window.activateWindow()
+                self.user_minimized = False
+                self.display_window.user_closed = False  # 重置关闭标志
+    
     def get_selected_api_profile(self):
         """获取当前选中的API配置"""
         profiles = self.config.get("api_profiles", [])
@@ -257,15 +285,70 @@ class TranslatorApp(QApplication):
             return {"name": "无可用API", "api_key": "", "base_url": ""}
             
         return selected_profile or {"name": "默认API", "api_key": "", "base_url": "https://api.openai.com/v1/"}
+    
+    def detect_language(self, text):
+        """检测文本语言：含有中文则为中文，否则返回检测结果"""
+        # 检查是否包含中文字符
+        if re.search(r'[\u4e00-\u9fff]', text):
+            return "Chinese", "中文"
+        
+        # 简单的语言检测（基于常见字符）
+        # 日语（包含平假名、片假名）
+        if re.search(r'[\u3040-\u309f\u30a0-\u30ff]', text):
+            return "Japanese", "日本語"
+        
+        # 韩语
+        if re.search(r'[\uac00-\ud7af]', text):
+            return "Korean", "한국어"
+        
+        # 俄语
+        if re.search(r'[\u0400-\u04ff]', text):
+            return "Russian", "Русский"
+        
+        # 默认为英语
+        return "English", "English"
+    
+    def get_target_language(self, source_lang_en):
+        """获取目标语言：与源语言一致时首选英文，都是英文则为中文；否则为用户配置"""
+        target_lang_config = self.config.get("target_language", "English")
+        
+        # 如果源语言与配置的目标语言一致
+        if source_lang_en == target_lang_config or (source_lang_en == "English" and target_lang_config == "English"):
+            # 如果源语言是英文，则翻译为中文
+            if source_lang_en == "English":
+                return "Chinese", "中文"
+            else:
+                # 否则首选翻译为英文
+                return "English", "English"
+        else:
+            # 否则使用用户配置的目标语言
+            lang_map = {
+                "English": ("English", "English"),
+                "中文": ("Chinese", "中文"),
+                "日本語": ("Japanese", "日本語"),
+                "한국어": ("Korean", "한국어"),
+                "Français": ("French", "Français"),
+                "Deutsch": ("German", "Deutsch"),
+                "Español": ("Spanish", "Español"),
+                "Русский": ("Russian", "Русский")
+            }
+            return lang_map.get(target_lang_config, ("English", "English"))
             
     def open_settings(self):
-        """打开综合设置对话框"""
+        """打开综合设置对话框（非模态）"""
+        # 如果设置对话框已经打开，则激活它
+        if self.settings_dialog is not None and self.settings_dialog.isVisible():
+            self.settings_dialog.activateWindow()
+            self.settings_dialog.raise_()
+            return
+        
         api_profiles = self.config.get("api_profiles", [])
         selected_api = self.config.get("selected_api", "")
         models = self.config.get("models", [])
         selected_model = self.config.get("selected_model", "")
         skills = self.config.get("skills", [])
         selected_skill_name = self.config.get("selected_skill", "")
+        target_language = self.config.get("target_language", "English")
         
         # 创建一个保存回调函数，用于实时保存设置
         def save_settings(config):
@@ -276,26 +359,30 @@ class TranslatorApp(QApplication):
             self.config["selected_model"] = config.get("selected_model", "")
             self.config["skills"] = config.get("skills", [])
             self.config["selected_skill"] = config.get("selected_skill", "")
+            self.config["target_language"] = config.get("target_language", "English")
             
             # 确保根据新选择的技能更新prompt
             self._sync_selected_skill_prompt()
             self._save_config()
         
-        dlg = SettingsDialog(
+        self.settings_dialog = SettingsDialog(
             api_profiles=api_profiles,
             selected_api=selected_api,
             models=models,
             selected_model=selected_model,
             skills=skills,
             selected_skill_name=selected_skill_name,
+            target_language=target_language,
             parent=None,
             save_callback=save_settings
         )
         
-        dlg.skill_selected.connect(self.on_skill_selected)
+        self.settings_dialog.skill_selected.connect(self.on_skill_selected)
         
-        if dlg.exec_() == SettingsDialog.Accepted:
-            pass
+        # 使用非模态对话框
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
             
     def on_skill_selected(self, chosen_skill_dict):
         """当选择技能时触发 (from SettingsDialog)"""
@@ -377,6 +464,7 @@ class TranslatorApp(QApplication):
         """获取暂存区 + 选中的文本, 并显示窗口"""
         try:
             self.user_minimized = False  # 新的翻译请求意味着应该显示窗口
+            self.display_window.user_closed = False  # 重置关闭标志
             self.display_window.get_text(text)  # 此方法应处理显示窗口
         except Exception as e:
             self._handle_error(f"获取文本时出错: {e}")
@@ -403,12 +491,29 @@ class TranslatorApp(QApplication):
                 self.display_window.update_html_content('<p style="color: red;">API Key 未设置</p>')
                 return
                 
+            # 检测当前语言
+            source_lang_en, source_lang_native = self.detect_language(text)
+            
+            # 获取目标语言
+            target_lang_en, target_lang_native = self.get_target_language(source_lang_en)
+            
+            # 格式化提示词
+            prompt_template = self.config.get("prompt", "")
+            formatted_prompt = prompt_template.format(
+                selected_text=text,
+                source_language=source_lang_native,
+                source_language_en=source_lang_en,
+                target_language=target_lang_native,
+                target_language_en=target_lang_en
+            )
+            
             self.translator = Translator(
                 text,
                 api_key=api_key,
                 base_url=base_url,
                 model=self.config.get("selected_model", "gpt-4o-mini"),
-                prompt=self.config.get("prompt", "")
+                prompt=formatted_prompt,
+                cache=self.cache
             )
             self.translator.signal.connect(self.show_translation)
             self.translator.start()
@@ -416,19 +521,25 @@ class TranslatorApp(QApplication):
             self._handle_error(f"翻译过程中出错: {e}")
     
     def _cancel_previous_translation(self):
-        """取消之前的翻译线程"""
+        """取消之前的翻译线程（改进：使用优雅的中断方式）"""
         if self.translator and self.translator.isRunning():
             try:
-                self.translator.terminate() 
-                self.translator.wait(500) 
+                # 首先尝试优雅地请求中断
+                self.translator.requestInterruption()
+                self.translator.wait(500)  # 等待500ms让线程自行结束
+                
+                # 如果线程仍在运行，才使用强制终止（作为最后手段）
                 if self.translator.isRunning():
-                    print("警告: 翻译线程未能立即终止。")
+                    print("警告: 线程未响应中断请求，强制终止...")
+                    self.translator.terminate()
+                    self.translator.wait(200)  # 再等待一小段时间
+                
+                # 断开信号连接
                 try:
                     self.translator.signal.disconnect(self.show_translation)
                 except TypeError:
-                    pass  # 信号未连接或已断开连接
-            except RuntimeError as e:
-                print(f"信息: 终止线程时发生运行时错误 (可能已结束): {e}")
+                    pass  # 信号可能已经断开
+                    
             except Exception as e:
                 print(f"取消翻译线程时出错: {e}")
             finally:
@@ -437,6 +548,10 @@ class TranslatorApp(QApplication):
     def show_translation(self, translated_text):
         """显示翻译结果"""
         try:
+            # 如果窗口被用户关闭，不显示任何内容
+            if self.display_window.user_closed:
+                return
+                
             if translated_text.startswith('@An error occurred:'):
                 error_msg = translated_text.replace('@An error occurred:', '').strip()
                 QMessageBox.critical(None, "翻译错误", error_msg)

@@ -8,6 +8,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 class DisplayWindow(QMainWindow):
     append_text = pyqtSignal(str)
     windowStateChanged = pyqtSignal(Qt.WindowStates)
+    windowClosed = pyqtSignal()  # 新增：窗口关闭信号
     
     def __init__(self):
         super().__init__()
@@ -15,6 +16,9 @@ class DisplayWindow(QMainWindow):
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint) 
         self.setWindowTitle(' ')
         self.setGeometry(0, 0, 1000, 700)
+        
+        # 标记窗口是否被用户关闭
+        self.user_closed = False
         
         # 设置窗口样式
         self.setStyleSheet("""
@@ -34,16 +38,12 @@ class DisplayWindow(QMainWindow):
         self.web_view.setZoomFactor(1.75)
         self.setCentralWidget(self.web_view)
         
-        # 设置基本URL为应用程序目录，这样HTML中的所有相对路径引用都会基于此目录
-        base_url = QUrl.fromLocalFile(self.app_dir + os.path.sep)
+        # 当前内容 - 用于在后台更新内容而不显示窗口时保存
+        self.current_content = ""
         
         # 加载HTML文件
         self.load_html_file()
         print(f"DisplayWindow initialized, loading HTML from: {self.index_html_path}")
-        print(f"Base URL for assets: {base_url.toString()}")
-        
-        # 当前内容 - 用于在后台更新内容而不显示窗口时保存
-        self.current_content = ""
     
     def _get_app_directory(self):
         """获取应用程序所在目录"""
@@ -71,57 +71,66 @@ class DisplayWindow(QMainWindow):
             # 备用方法：直接加载文件
             self.web_view.load(QUrl.fromLocalFile(self.index_html_path))
     
-    # 重写windowStateChange事件，发送信号
     def changeEvent(self, event):
+        """重写窗口状态改变事件，发送信号"""
         if event.type() == event.WindowStateChange:
             self.windowStateChanged.emit(self.windowState())
+            # 当窗口从最小化恢复时，重新渲染当前内容
+            if not (self.windowState() & Qt.WindowMinimized) and self.current_content:
+                javascript = f'updateMarkdown(`{self.current_content.replace("`", "\\`")}`);'
+                self._execute_javascript(javascript)
         super().changeEvent(event)
+    
+    def closeEvent(self, event):
+        """处理窗口关闭事件"""
+        self.user_closed = True
+        self.windowClosed.emit()  # 发送关闭信号
+        event.accept()  # 接受关闭事件
+    
+    def _execute_javascript(self, javascript, reload_on_error=False):
+        """执行 JavaScript 的通用方法"""
+        try:
+            self.web_view.page().runJavaScript(javascript)
+        except Exception as e:
+            print(f"Error executing JavaScript: {e}")
+            if reload_on_error:
+                self.load_html_file()  # 重新加载HTML
         
     def update_html_content(self, md_text):
         """更新HTML内容并显示窗口"""
         self.current_content = md_text
         self.__display()
         javascript = f'updateMarkdown(`{md_text.replace("`", "\\`")}`);'
-        try:
-            self.web_view.page().runJavaScript(javascript)
-        except Exception as e:
-            print(f"Error updating HTML content: {e}")
-            self.load_html_file()  # 重新加载HTML
+        self._execute_javascript(javascript, reload_on_error=True)
     
     def update_html_without_show(self, md_text):
         """更新HTML内容但不显示窗口（用于最小化状态）"""
         self.current_content = md_text
         javascript = f'updateMarkdown(`{md_text.replace("`", "\\`")}`);'
-        try:
-            self.web_view.page().runJavaScript(javascript)
-        except Exception as e:
-            print(f"Error updating HTML content without showing: {e}")
+        self._execute_javascript(javascript)
             
     def append_text_content(self, text):
         """添加文本内容并显示窗口"""
         self.__display()
         javascript = f'appendText(`{text.replace("`", "\\`")}`);'
-        try:
-            self.web_view.page().runJavaScript(javascript)
-        except Exception as e:
-            print(f"Error appending text: {e}")
-            self.load_html_file()  # 重新加载HTML
+        self._execute_javascript(javascript, reload_on_error=True)
     
     def append_text_without_show(self, text):
         """添加文本内容但不显示窗口（用于最小化状态）"""
         javascript = f'appendText(`{text.replace("`", "\\`")}`);'
-        try:
-            self.web_view.page().runJavaScript(javascript)
-        except Exception as e:
-            print(f"Error appending text without showing: {e}")
+        self._execute_javascript(javascript)
     
     def get_text(self, text):
         """获取文本并触发翻译信号"""
         javascript = f'getText(`{text.replace("`", "\\`")}`);'
+        self._execute_javascript_with_callback(javascript, self.__send_text_signal)
+    
+    def _execute_javascript_with_callback(self, javascript, callback):
+        """执行带回调的 JavaScript"""
         try:
-            self.web_view.page().runJavaScript(javascript, self.__send_text_signal)
+            self.web_view.page().runJavaScript(javascript, callback)
         except Exception as e:
-            print(f"Error getting text: {e}")
+            print(f"Error executing JavaScript with callback: {e}")
     
     def __send_text_signal(self, text):
         """发送文本信号到翻译模块"""
@@ -129,6 +138,9 @@ class DisplayWindow(QMainWindow):
             
     def __display(self):
         """显示窗口"""
+        # 重置关闭标志，因为要重新显示窗口
+        self.user_closed = False
+        
         if not self.isVisible():
             cursor_pos = QtGui.QCursor.pos()
             window_size = self.size()

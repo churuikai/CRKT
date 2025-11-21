@@ -1,29 +1,28 @@
 from PyQt5.QtCore import QThread, pyqtSignal
 from cache import Cache
-from api import openai_request
+import openai
 
 class Translator(QThread):
     signal = pyqtSignal(str)
-    cache:Cache = None
-    
-    def __init__(self, text:str, api_key=None, base_url=None, model="gpt-4.1-nano", prompt="Translate the following text to Chinese:"):
+
+    def __init__(self, text:str, api_key=None, base_url=None, model="gpt-4.1-nano", prompt="Translate the following text to Chinese:", cache:Cache=None):
         super().__init__()
-        assert self.cache is not None, "Cache not initialized. Please set Translator.cache first."
+
         self.text = text
         self.api_key = api_key
         self.base_url = base_url
         self.model = model
         self.prompt = prompt
-        self.is_terminated = False
+        self.cache = cache
       
     def run(self):
         try:
-            # 检查是否被终止
-            if self.is_terminated:
+            # 检查是否被请求中断
+            if self.isInterruptionRequested():
                 return
                 
             # 检查缓存
-            cache_text = self.__class__.cache.get(self.text, gap=3)
+            cache_text = self.cache.get(self.text, gap=3)
             if cache_text:
                 self.signal.emit(cache_text)
                 return
@@ -42,27 +41,26 @@ class Translator(QThread):
             if not self.base_url.endswith('/'):
                 self.base_url += '/'
                 
-            # 请求API
-            completion_stream = openai_request(
-                self.text, 
-                self.api_key, 
-                self.base_url, 
-                self.model, 
-                self.prompt, 
-                Structured=False
+            # 创建 OpenAI 客户端并请求API
+            client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            completion_stream = client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": self.prompt}],
+                stream=True,
             )
             
             response_content = ""
             n = 0
             for chunk in completion_stream:
-                # 检查是否被终止
-                if self.is_terminated:
+                # 检查是否被请求中断
+                if self.isInterruptionRequested():
+                    print("翻译线程收到中断请求，正在停止...")
                     return
                     
                 try:
                     content = chunk.choices[0].delta.content or ""
                     response_content += content
-                    if n % 3 == 0:
+                    if n < 3 or n % 3 == 0:
                         self.signal.emit(response_content)
                     n += 1
                 except Exception as e:
@@ -72,14 +70,10 @@ class Translator(QThread):
             print(f"Translated text\n----{response_content}\n----")
             self.signal.emit(response_content)
             # 保存到缓存
-            self.__class__.cache.set(self.text, response_content)
+            self.cache.set(self.text, response_content)
             
         except Exception as e:
-            if not self.is_terminated:  # 只有在非主动终止的情况下才报错
+            # 只有在非主动中断的情况下才报错
+            if not self.isInterruptionRequested():
                 print(f"Translation error: {e}")
                 self.signal.emit(f'@An error occurred:{str(e)}\n ')
-    
-    def terminate(self):
-        """重写terminate方法，添加标志位"""
-        self.is_terminated = True
-        super().terminate()

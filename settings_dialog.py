@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QListWidget, QWidget, QTabWidget, QGroupBox, QFormLayout, QInputDialog,
     QMessageBox, QListWidgetItem, QSplitter, QTableWidget,
     QTableWidgetItem, QHeaderView, QPlainTextEdit, QStyledItemDelegate, 
-    QAbstractItemView
+    QAbstractItemView, QComboBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QTextOption
@@ -26,7 +26,7 @@ class MultiLineDelegate(QStyledItemDelegate):
 
 class SettingsDialog(QDialog):
     """综合设置对话框"""
-    skill_selected = pyqtSignal(dict)  # 传递选中的技能
+    skill_selected = pyqtSignal(dict)  # 传递选中的提示词
     
     def __init__(self, 
                 api_profiles=None, 
@@ -35,6 +35,7 @@ class SettingsDialog(QDialog):
                 selected_model="", 
                 skills=None, 
                 selected_skill_name="",
+                target_language="English",
                 parent=None,
                 save_callback=None):
         super().__init__(parent)
@@ -48,6 +49,7 @@ class SettingsDialog(QDialog):
         self.selected_model = selected_model
         self.skills = skills if skills else []
         self.selected_skill_name = selected_skill_name
+        self.target_language = target_language  # 目标语言配置
         self.save_callback = save_callback  # 保存配置的回调函数
         
         # 定义配色
@@ -173,29 +175,15 @@ class SettingsDialog(QDialog):
         # 添加标签页
         self.tab_widget.addTab(self._create_api_tab(), "API 设置")
         self.tab_widget.addTab(self._create_model_tab(), "模型设置")
-        self.tab_widget.addTab(self._create_skill_tab(), "技能管理")
+        self.tab_widget.addTab(self._create_skill_tab(), "提示词管理")
+        self.tab_widget.addTab(self._create_language_tab(), "语言设置")
         
         main_layout.addWidget(self.tab_widget)
         
-        # 底部布局：状态信息和按钮
-        bottom_layout = QHBoxLayout()
-        
-        # 状态信息（靠左）
+        # 底部状态栏
         self.status_label = QLabel("准备就绪")
-        self.status_label.setStyleSheet(f"color: {self.colors['light_text']};")
-        bottom_layout.addWidget(self.status_label, 1)  # 设置拉伸因子为1
-        
-        # 按钮（靠右）
-        self.ok_button = QPushButton("确定")
-        self.cancel_button = QPushButton("取消")
-        bottom_layout.addWidget(self.ok_button)
-        bottom_layout.addWidget(self.cancel_button)
-        
-        main_layout.addLayout(bottom_layout)
-        
-        # 绑定事件
-        self.ok_button.clicked.connect(self.accept)
-        self.cancel_button.clicked.connect(self.reject)
+        self.status_label.setStyleSheet(f"color: {self.colors['light_text']}; padding: 8px;")
+        main_layout.addWidget(self.status_label)
         
     def update_status(self, message):
         """更新状态信息"""
@@ -336,14 +324,14 @@ class SettingsDialog(QDialog):
         return model_tab
     
     def _create_skill_tab(self):
-        """创建技能管理标签页"""
+        """创建提示词管理标签页"""
         skill_tab = QWidget()
         skill_layout = QVBoxLayout(skill_tab)
         skill_layout.setContentsMargins(10, 15, 10, 10)
         
-        # 显示当前选中技能
+        # 显示当前选中提示词
         skill_header = QHBoxLayout()
-        current_skill_label = QLabel("当前选中技能:")
+        current_skill_label = QLabel("当前选中提示词:")
         current_skill_value = QLabel(self.selected_skill_name)
         current_skill_value.setStyleSheet(f"font-weight: bold; color: {self.colors['primary']};")
         
@@ -352,10 +340,10 @@ class SettingsDialog(QDialog):
         skill_header.addStretch()
         skill_layout.addLayout(skill_header)
         
-        # 技能表格
+        # 提示词表格
         self.skill_table = QTableWidget()
         self.skill_table.setColumnCount(2)
-        self.skill_table.setHorizontalHeaderLabels(["技能名称", "提示词模板"])
+        self.skill_table.setHorizontalHeaderLabels(["提示词名称", "提示词模板"])
         self.skill_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.skill_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.skill_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -370,15 +358,17 @@ class SettingsDialog(QDialog):
         skill_layout.addWidget(self.skill_table)
         
         # 提示标签
-        tip_label = QLabel("提示: 双击单元格可编辑内容。提示词中可使用{selected_text}代表选中的文本。")
+        tip_label = QLabel("提示: 双击单元格可编辑内容。提示词中可使用占位符：\n"
+                         "{selected_text}=选中的文本、{source_language}=当前语言、{source_language_en}=当前语言(英文)、\n"
+                         "{target_language}=目标语言、{target_language_en}=目标语言(英文)")
         tip_label.setWordWrap(True)
         tip_label.setStyleSheet(f"color: {self.colors['light_text']}; font-style: italic;")
         skill_layout.addWidget(tip_label)
         
         # 按钮组
         skill_btn_layout = QHBoxLayout()
-        self.add_skill_btn = QPushButton("添加技能")
-        self.remove_skill_btn = QPushButton("删除技能")
+        self.add_skill_btn = QPushButton("添加提示词")
+        self.remove_skill_btn = QPushButton("删除提示词")
         self.select_skill_btn = QPushButton("设为默认")
         
         skill_btn_layout.addWidget(self.add_skill_btn)
@@ -386,17 +376,63 @@ class SettingsDialog(QDialog):
         skill_btn_layout.addWidget(self.select_skill_btn)
         skill_layout.addLayout(skill_btn_layout)
         
-        # 绑定技能相关事件
+        # 绑定提示词相关事件
         self.add_skill_btn.clicked.connect(self._add_skill)
         self.remove_skill_btn.clicked.connect(self._remove_skill)
         self.select_skill_btn.clicked.connect(self._select_skill)
         self.skill_table.itemChanged.connect(self._on_skill_item_changed)
         self.skill_table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed)
         
-        # 加载技能列表
+        # 加载提示词列表
         self._load_skills()
         
         return skill_tab
+    
+    def _create_language_tab(self):
+        """创建语言设置标签页"""
+        language_tab = QWidget()
+        language_layout = QVBoxLayout(language_tab)
+        language_layout.setContentsMargins(10, 15, 10, 10)
+        
+        # 语言设置组
+        language_group = QGroupBox("目标语言设置")
+        language_form = QFormLayout(language_group)
+        
+        # 说明标签
+        info_label = QLabel("源语言会自动检测\n"
+                           "目标语言可配置，当与源语言一致时翻译为中文或英文")
+        info_label.setWordWrap(True)
+        info_label.setStyleSheet(f"color: {self.colors['light_text']}; font-style: italic; margin-bottom: 10px;")
+        language_form.addRow(info_label)
+        
+        # 目标语言选择
+        target_lang_label = QLabel("目标语言:")
+        self.target_language_combo = QComboBox()
+        self.target_language_combo.addItems([
+            "English", "中文", "日本語", "한국어", 
+            "Français", "Deutsch", "Español", "Русский"
+        ])
+        
+        # 设置当前选中的目标语言
+        index = self.target_language_combo.findText(self.target_language)
+        if index >= 0:
+            self.target_language_combo.setCurrentIndex(index)
+        
+        language_form.addRow(target_lang_label, self.target_language_combo)
+        
+        # 绑定变化事件
+        self.target_language_combo.currentTextChanged.connect(self._on_target_language_changed)
+        
+        language_layout.addWidget(language_group)
+        language_layout.addStretch()
+        
+        return language_tab
+    
+    def _on_target_language_changed(self, new_language):
+        """目标语言改变时的处理"""
+        self.target_language = new_language
+        self.update_status(f"目标语言已设置为: {new_language}")
+        self._save_config()
     
     # API相关方法
     def _load_api_profiles(self):
@@ -658,9 +694,9 @@ class SettingsDialog(QDialog):
         # 保存配置
         self._save_config()
     
-    # 技能相关方法
+    # 提示词相关方法
     def _load_skills(self):
-        """加载技能到表格"""
+        """加载提示词到表格"""
         self.skill_table.blockSignals(True)
         self.skill_table.setRowCount(len(self.skills))
         
@@ -671,7 +707,7 @@ class SettingsDialog(QDialog):
             name_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             prompt_item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             
-            # 为当前选中的技能添加标记
+            # 为当前选中的提示词添加标记
             if skill["name"] == self.selected_skill_name:
                 name_item.setForeground(QColor(self.colors["primary"]))
                 
@@ -680,24 +716,24 @@ class SettingsDialog(QDialog):
             
         self.skill_table.blockSignals(False)
         
-        # 选择当前选中的技能行
+        # 选择当前选中的提示词行
         for row in range(self.skill_table.rowCount()):
             if self.skill_table.item(row, 0).text() == self.selected_skill_name:
                 self.skill_table.selectRow(row)
                 break
     
     def _add_skill(self):
-        """添加新技能"""
-        # 创建添加技能对话框
+        """添加新提示词"""
+        # 创建添加提示词对话框
         dialog = QDialog(self)
-        dialog.setWindowTitle("添加技能")
+        dialog.setWindowTitle("添加提示词")
         dialog.resize(600, 400)
         dialog.setStyleSheet(self.styleSheet())
         
         layout = QVBoxLayout(dialog)
         
-        # 技能名称
-        name_label = QLabel("技能名称:")
+        # 提示词名称
+        name_label = QLabel("提示词名称:")
         name_edit = QLineEdit()
         layout.addWidget(name_label)
         layout.addWidget(name_edit)
@@ -709,8 +745,10 @@ class SettingsDialog(QDialog):
         layout.addWidget(prompt_edit)
         
         # 提示信息
-        tip = QLabel("提示: 提示词模板中可以使用 {selected_text} 占位符表示选中的文本")
+        tip = QLabel("提示: 提示词模板中可使用占位符：{selected_text}=选中的文本、{source_language}=当前语言、\n"
+                    "{source_language_en}=当前语言(英文)、{target_language}=目标语言、{target_language_en}=目标语言(英文)")
         tip.setStyleSheet(f"color: {self.colors['light_text']}; font-style: italic;")
+        tip.setWordWrap(True)
         layout.addWidget(tip)
         
         # 按钮
@@ -731,15 +769,15 @@ class SettingsDialog(QDialog):
             prompt = prompt_edit.toPlainText().strip()
             
             if not name or not prompt:
-                self.update_status("技能名称和提示词不能为空")
+                self.update_status("提示词名称和内容不能为空")
                 return
                 
             # 检查重名
             if any(skill["name"] == name for skill in self.skills):
-                self.update_status(f"技能名称 '{name}' 已存在")
+                self.update_status(f"提示词名称 '{name}' 已存在")
                 return
                 
-            # 添加新技能
+            # 添加新提示词
             new_skill = {"name": name, "prompt": prompt}
             self.skills.append(new_skill)
             
@@ -757,23 +795,23 @@ class SettingsDialog(QDialog):
             self.skill_table.setItem(row, 1, prompt_item)
             self.skill_table.selectRow(row)
             
-            self.update_status(f"已添加新技能: {name}")
+            self.update_status(f"已添加新提示词: {name}")
             
             # 保存配置
             self._save_config()
     
     def _remove_skill(self):
-        """删除选中的技能"""
+        """删除选中的提示词"""
         row = self.skill_table.currentRow()
         if row < 0:
-            self.update_status("请先选择一个技能")
+            self.update_status("请先选择一个提示词")
             return
             
         if len(self.skills) <= 1:
-            self.update_status("至少需要保留一个技能")
+            self.update_status("至少需要保留一个提示词")
             return
             
-        # 获取技能名称
+        # 获取提示词名称
         skill_name = self.skill_table.item(row, 0).text()
         
         # 从列表中移除
@@ -782,7 +820,7 @@ class SettingsDialog(QDialog):
         # 从表格中移除
         self.skill_table.removeRow(row)
         
-        # 如果删除的是当前选中的技能，则更新选中的技能
+        # 如果删除的是当前选中的提示词，则更新选中的提示词
         if skill_name == self.selected_skill_name and self.skills:
             self.selected_skill_name = self.skills[0]["name"]
             self.skill_selected.emit(self.skills[0])
@@ -791,16 +829,16 @@ class SettingsDialog(QDialog):
         if self.skill_table.rowCount() > 0:
             self.skill_table.selectRow(0)
             
-        self.update_status(f"已删除技能: {skill_name}")
+        self.update_status(f"已删除提示词: {skill_name}")
         
         # 保存配置
         self._save_config()
     
     def _select_skill(self):
-        """将当前选中的技能设为默认"""
+        """将当前选中的提示词设为默认"""
         row = self.skill_table.currentRow()
         if row < 0:
-            self.update_status("请先选择一个技能")
+            self.update_status("请先选择一个提示词")
             return
             
         chosen_skill = self.skills[row]
@@ -818,18 +856,18 @@ class SettingsDialog(QDialog):
         # 发射信号
         self.skill_selected.emit(chosen_skill)
         
-        self.update_status(f"已将 {chosen_skill['name']} 设为默认技能")
+        self.update_status(f"已将 {chosen_skill['name']} 设为默认提示词")
         
         # 保存配置
         self._save_config()
     
     def _on_skill_item_changed(self, item):
-        """技能表格内容变化处理"""
+        """提示词表格内容变化处理"""
         row = item.row()
         column = item.column()
         new_value = item.text()
         
-        if column == 0:  # 技能名称
+        if column == 0:  # 提示词名称
             # 检测重名
             for r in range(self.skill_table.rowCount()):
                 if r != row and self.skill_table.item(r, 0).text() == new_value:
@@ -838,7 +876,7 @@ class SettingsDialog(QDialog):
                     self.skill_table.blockSignals(True)
                     item.setText(old_value)
                     self.skill_table.blockSignals(False)
-                    self.update_status(f"技能名称 '{new_value}' 已存在")
+                    self.update_status(f"提示词名称 '{new_value}' 已存在")
                     return
              
             # 名称为空检查
@@ -847,14 +885,14 @@ class SettingsDialog(QDialog):
                 self.skill_table.blockSignals(True)
                 item.setText(old_value)
                 self.skill_table.blockSignals(False)
-                self.update_status("技能名称不能为空")
+                self.update_status("提示词名称不能为空")
                 return
                     
-            # 更新技能名称
+            # 更新提示词名称
             old_name = self.skills[row]["name"]
             self.skills[row]["name"] = new_value
             
-            # 如果修改的是当前选中的技能，则更新选中的技能名称
+            # 如果修改的是当前选中的提示词，则更新选中的提示词名称
             if self.selected_skill_name == old_name:
                 self.selected_skill_name = new_value
                 
@@ -869,7 +907,7 @@ class SettingsDialog(QDialog):
                 
             self.skills[row]["prompt"] = new_value
         
-        self.update_status("技能已更新")
+        self.update_status("提示词已更新")
         
         # 保存配置
         self._save_config()
@@ -883,7 +921,8 @@ class SettingsDialog(QDialog):
                 "models": self.models,
                 "selected_model": self.selected_model,
                 "skills": self.skills,
-                "selected_skill": self.selected_skill_name
+                "selected_skill": self.selected_skill_name,
+                "target_language": self.target_language
             }
             self.save_callback(config)
     
