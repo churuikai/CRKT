@@ -1,10 +1,7 @@
 # CRKT
 
-2025年已经存在了相当多的翻译工具，它们足够便捷，例如知云、沉浸式翻译、各类划词翻译。
 
-但仍需一个不占用电脑运行资源、随时可以呼出、给出高质量地道翻译的小工具，补充其它软件翻译质量一般、只能在浏览器/应用内使用的缺点。
-
-**它是一个绿色轻量、全局使用、翻译质量高的翻译工具。**
+**绿色轻量、全局使用、翻译质量高的翻译工具。** 补充其它软件翻译质量一般、只能在浏览器/应用内使用的缺点。
 
 
 ## 1. 安装
@@ -19,29 +16,60 @@
 
 例如：`api-key: xx-xxxxxxxxxxxxxxxx`   `base-url: https://api.openai.com/v1/` 
 
-> 国内腾讯混元、阿里百炼、字节火山引擎、硅基流动都有 api 服务，小模型如 `Qwen3 32b` 价格低廉-连接稳定，推荐。
-> 模型推荐使用 `gpt-4.1-nano` `doubao-lite-32k` 等小模型
+> 国内腾讯混元、阿里百炼、字节火山引擎、硅基流动都有 api 服务。
+> 模型推荐使用 `gpt-4o-mini` `doubao-lite-32k` `Qwen3 32b`等小模型
 
 配置文件会保存在安装目录下的`data/config.json`；卸载会默认删除该配置文件。
 
 数据缓存会保存到安装目录下的`data/cache.pkl`，缓存加速重复内容翻译速度，删除不影响使用。
 
-### 技能
+### 提示词
 
-可以根据自己需求灵活调整 `技能`，不同技能能够提示大模型产生不同输出。各类 pdf 文档、网页产生了非常异构的文本格式和公式格式，较难处理，默认的通用翻译提示词如下：
+可以根据自己需求灵活调整 `技能`，不同技能能够提示大模型产生不同输出。各类 pdf 文档、网页产生了非常异构的文本格式和公式格式，较难处理，推荐提示词如下：
 ```
-你将作为一个专业的翻译助手，任务是将文本翻译成中文；但如果所给文本是中文，则翻译为学术且地道的英文。
-翻译时需要遵循以下要求：
-1. 准确性：确保翻译内容的准确性，保留专业术语和专有名词，用反引号`标出。
-2. 格式要求：使用 Markdown 语法输出内容。
-3. 公式格式：任何时候所有公式、数学字母都必须使用四个$包围，忽略任何tag和序号。
-4. 使用常见字符: 任何公式中不常见的字符替换成常见标准的字符，输出latex代码，确保katex可以解析，例如:
-   - '𝑆'换成'S', '𝐹'换成'F', '𝑛'换成'n', 'i'换成i
-   - '...' 换成 '\cdots', '.'换成 '\cdot'
-5. 注意，如果是单个单词或短语，你可以精炼地道的解释该单词/短语的含义，给出音标和简单例证。
-6. 如果是代码或注释，解释代码含义或补全代码
+# Professional Translation Assistant
 
-下面是需要翻译的内容：{selected_text}
+## Core Translation Rules
+
+### 1. Intelligent Language Recognition and Conversion
+- **Chinese → English**: Translate into academic and idiomatic English that meets international academic writing standards
+- **Non-Chinese → Chinese**: Translate into accurate and fluent modern Chinese while maintaining the original text's linguistic style
+
+### 2. Content Type Adaptive Processing
+
+#### Academic/Technical Texts
+- Maintain the accuracy of professional terminology, marking terminology and proper nouns or abbreviations with `` in Markdown.
+- Preserve the logical structure and argumentation approach of the original text
+- Ensure precision in conceptual communication
+
+#### Code and Comments
+- Explain code functionality and logic rather than translating line by line
+- Retain key variable and function names, marking with `code`
+- Provide necessary technical background explanations
+
+#### Words/Phrases
+- Provide accurate bilingual correspondences
+- Include International Phonetic Alphabet [IPA] notation
+- Give 1-2 typical usage scenarios
+
+### 3. Mathematical Formula Standards
+- Use $$formula content$$ format for all mathematical expressions
+- Standardize LaTeX characters:
+  - Greek letters: α β γ δ ε → `\alpha \beta \gamma \delta \epsilon`
+  - Special symbols: ∞ ∑ ∏ ∫ → `\infty \sum \prod \int`
+  - Ellipsis: … → `\cdots` (centered) or `\ldots` (baseline)
+- Ensure KaTeX compatibility
+
+### 4. Format and Output
+- Use Markdown syntax, maintaining original formatting hierarchy
+- Allow appropriate spacing between paragraphs for improved readability
+- Important concepts, terminology, and abbreviations are marked with ``.
+
+---
+
+**Please translate the following content directly:**
+
+{selected_text}
 ```
 自定义提示词时，{selected_text} 代表被选中的内容。
 
