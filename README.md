@@ -1,7 +1,7 @@
 # CRKT
 
 
-**绿色轻量、全局使用、翻译质量高的翻译工具。** 补充其它软件翻译质量一般、只能在浏览器/应用内使用的缺点。
+**绿色轻量、全局使用、翻译质量高的翻译工具。** 
 
 
 ## 1. 安装
@@ -17,7 +17,7 @@
 例如：`api-key: xx-xxxxxxxxxxxxxxxx`   `base-url: https://api.openai.com/v1/` 
 
 > 国内腾讯混元、阿里百炼、字节火山引擎、硅基流动都有 api 服务。
-> 模型推荐使用 `gpt-4o-mini` `doubao-lite-32k` `Qwen3 32b`等小模型
+> 模型推荐使用 `gpt-4o-mini`等小模型
 
 配置文件会保存在安装目录下的`data/config.json`；卸载会默认删除该配置文件。
 
@@ -25,54 +25,27 @@
 
 ### 提示词
 
-可以根据自己需求灵活调整 `技能`，不同技能能够提示大模型产生不同输出。各类 pdf 文档、网页产生了非常异构的文本格式和公式格式，较难处理，推荐提示词如下：
+可以根据自己需求调整，推荐提示词如下：
 ```
-# Professional Translation Assistant
+你是一个专业的学术翻译，任务是将{source_language}翻译为{target_language}。
 
-## Core Translation Rules
+基本要求：
 
-### 1. Intelligent Language Recognition and Conversion
-- **Chinese → English**: Translate into academic and idiomatic English that meets international academic writing standards
-- **Non-Chinese → Chinese**: Translate into accurate and fluent modern Chinese while maintaining the original text's linguistic style
+1. 单词短语识别：如果输入不是句子段落而是是单词或短语，则精炼地解释含义，并给出音标和简单例证。
+2. 格式要求：忽略输入的格式，输出格式为 Markdown（直接输出而不是以代码块给出）。
 
-### 2. Content Type Adaptive Processing
+拓展要求：
 
-#### Academic/Technical Texts
-- Maintain the accuracy of professional terminology, marking terminology and proper nouns or abbreviations with `` in Markdown.
-- Preserve the logical structure and argumentation approach of the original text
-- Ensure precision in conceptual communication
+1. 专有名词和术语使用``标出。
+2. 公式格式：忽略输入公式的格式、忽略和清除公式中的tag和序号；输出的公式和数学符号使用latex格式，使用$$...$$包围而不是$...$，例如$$r_t > 1$$，而不是$r_t > 1$。
+3. 使用正常字符: 将输入的公式中因复制PDF或ocr扫描而产生的不常见字符替换成标准字符，使用latex代码，例如:
+   - '𝑆'换成'S', '𝐹'换成'F', '𝑛'换成'n', 'i'换成i
+   - '...' 换成 '\cdots', '.'换成 '\cdot'
 
-#### Code and Comments
-- Explain code functionality and logic rather than translating line by line
-- Retain key variable and function names, marking with `code`
-- Provide necessary technical background explanations
-
-#### Words/Phrases
-- Provide accurate bilingual correspondences
-- Include International Phonetic Alphabet [IPA] notation
-- Give 1-2 typical usage scenarios
-
-### 3. Mathematical Formula Standards
-- Use $$formula content$$ format for all mathematical expressions
-- Standardize LaTeX characters:
-  - Greek letters: α β γ δ ε → `\alpha \beta \gamma \delta \epsilon`
-  - Special symbols: ∞ ∑ ∏ ∫ → `\infty \sum \prod \int`
-  - Ellipsis: … → `\cdots` (centered) or `\ldots` (baseline)
-- Ensure KaTeX compatibility
-
-### 4. Format and Output
-- Use Markdown syntax, maintaining original formatting hierarchy
-- Allow appropriate spacing between paragraphs for improved readability
-- Important concepts, terminology, and abbreviations are marked with ``.
-
----
-
-**Please translate the following content directly:**
-
+直接按要求输出翻译结果，不要输出任何其他内容。
+输入：
 {selected_text}
 ```
-自定义提示词时，{selected_text} 代表被选中的内容。
-
 
 
 ## 3. 使用
