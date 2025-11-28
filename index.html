@@ -4,118 +4,424 @@
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
     <title>Markdown Preview</title>
-    <!-- 引入 editormd 的 CSS 文件 -->
-    <link id="markdown-css"  href="editormd/css/editormd.preview.css" rel="stylesheet"/>
+    <link id="markdown-css" href="editormd/css/editormd.preview.css" rel="stylesheet"/>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+        }
+        
+        /* 美化滚动条 */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.12);
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+        }
+        
+        /* 单栏模式容器 */
+        #single-mode-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 0px;
+        }
+        #single-mode-container.mode-hidden {
+            display: none;
+        }
+        
+        /* 原文输入框 */
+        .source-textarea {
+            width: 100%;
+            min-height: 100%;
+            padding: 0;
+            font-size: 13px;
+            font-family: "Consolas", "Monaco", "Courier New", monospace;
+            border: none;
+            background: transparent;
+            resize: none;
+            outline: none;
+            line-height: 1.6;
+            overflow: hidden;
+        }
+        .source-textarea.state-locked {
+            color: #999999;
+        }
+        
+        /* 翻译视图 */
+        #translation-view-single {
+            width: 100%;
+            height: auto;
+        }
+        
+        /* 对照模式容器 */
+        #dual-mode-container {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            display: none;
+        }
+        #dual-mode-container.mode-visible {
+            display: flex;
+        }
+        #dual-mode-container.layout-horizontal {
+            flex-direction: row;
+        }
+        #dual-mode-container.layout-horizontal .dual-pane {
+            width: 50%;
+            height: 100%;
+        }
+        #dual-mode-container.layout-horizontal .dual-divider {
+            width: 2px;
+            height: 100%;
+            background: #e0e0e0;
+            flex-shrink: 0;
+            cursor: ew-resize;
+            position: relative;
+        }
+        #dual-mode-container.layout-horizontal .dual-divider:hover {
+            background: #c0c0c0;
+        }
+        #dual-mode-container.layout-vertical {
+            flex-direction: column;
+        }
+        #dual-mode-container.layout-vertical .dual-pane {
+            width: 100%;
+            height: 50%;
+        }
+        #dual-mode-container.layout-vertical .dual-divider {
+            width: 100%;
+            height: 2px;
+            background: #e0e0e0;
+            flex-shrink: 0;
+            cursor: ns-resize;
+            position: relative;
+        }
+        #dual-mode-container.layout-vertical .dual-divider:hover {
+            background: #c0c0c0;
+        }
+        
+        /* 对照模式面板 */
+        .dual-pane {
+            overflow-y: auto;
+            position: relative;
+            background: #ffffff;
+            padding: 0px;
+        }
+        
+        /* 对照模式原文区 */
+        #source-pane-dual {
+            position: relative;
+        }
+        #source-pane-dual .source-textarea {
+            height: auto;
+        }
+        
+        /* 对照模式翻译区 */
+        #translation-view-dual {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
 </head>
 <body>
-    <div id="markdown-view">
-        <textarea style="display:none;"></textarea>
+    <!-- 单栏模式容器 -->
+    <div id="single-mode-container">
+        <div id="translation-view-single" style="display:none;"></div>
+        <div style="padding: 10px;">
+            <textarea id="source-textarea-single" class="source-textarea" placeholder="双击附加热键添加文本，双击翻译热键执行翻译。"></textarea>
+        </div>
     </div>
-    <!-- <div id="text-view" style="margin-top: -37px;"> -->
-    <div id="text-view" style="margin-top: -30px; margin-left: -1%; ">
-        <textarea style="display:none;"></textarea>
+    
+    <!-- 对照模式容器 -->
+    <div id="dual-mode-container">
+        <div id="source-pane-dual" class="dual-pane dual-pane-source">
+            <div style="padding: 10px;">
+                <textarea id="source-textarea-dual" class="source-textarea" placeholder="原文区"></textarea>
+            </div>
+        </div>
+        <div class="dual-divider"></div>
+        <div id="translation-pane-dual" class="dual-pane dual-pane-translation">
+            <div id="translation-view-dual"></div>
+        </div>
     </div>
 </body>
 <script src="jquery.min.js"></script>
 <script class="markdown" src="editormd/editormd.min.js"></script>
 <script class="markdown" src="editormd/lib/marked.min.js"></script>
 <script class="markdown" src="editormd/lib/prettify.min.js"></script>
-<!-- <script class="text" src="editormd/editormd.min.js"></script> -->
 <script>
-    // 初始变量
-    var textView = null;
-    var markdownElement = null;
-    var textViewElement = null;
-    // 加载后执行
+    // ========== 数据层 ==========
+    var sourceText = "";              // 原文内容
+    var translationText = "";         // 翻译内容
+    var isSourceLocked = false;       // 原文区是否锁定
+    
+    // ========== DOM元素 ==========
+    var sourceTextareaSingle = null;  // 单栏模式：原文输入框
+    var sourceTextareaDual = null;    // 对照模式：原文输入框
+    var sourcePane = null;            // 对照模式：原文面板
+    var singleModeContainer = null;   // 单栏模式容器
+    var dualModeContainer = null;     // 对照模式容器
+    
+    // ========== 状态变量 ==========
+    var isDualMode = false;           // 是否为对照模式
+    var isResizing = false;           // 是否正在拖动分隔线
+    var sourcePaneSize = 50;          // 原文区大小百分比（默认50%）
+    
+    // ========== 初始化 ==========
     $(function () {
         editormd.katexURL = {
             js: 'katex/katex.min',
             css: 'katex/katex.min'
         };
 
-        markdownElement = document.getElementById('markdown-view');
-        markdownElement.style.display = "none";
+        singleModeContainer = document.getElementById('single-mode-container');
+        dualModeContainer = document.getElementById('dual-mode-container');
+        sourcePane = document.getElementById('source-pane-dual');
+        sourceTextareaSingle = document.getElementById('source-textarea-single');
+        sourceTextareaDual = document.getElementById('source-textarea-dual');
+        
+        // 绑定输入事件
+        if (sourceTextareaSingle) {
+            sourceTextareaSingle.addEventListener('input', function() {
+                sourceText = sourceTextareaSingle.value;
+                autoResizeTextarea(sourceTextareaSingle);
+                if (isSourceLocked) {
+                    isSourceLocked = false;
+                    sourceTextareaSingle.classList.remove('state-locked');
+                    sourceTextareaDual.classList.remove('state-locked');
+                }
+            });
+        }
+        
+        if (sourceTextareaDual) {
+            sourceTextareaDual.addEventListener('input', function() {
+                sourceText = sourceTextareaDual.value;
+                autoResizeTextarea(sourceTextareaDual);
+                if (isSourceLocked) {
+                    isSourceLocked = false;
+                    sourceTextareaSingle.classList.remove('state-locked');
+                    sourceTextareaDual.classList.remove('state-locked');
+                }
+            });
+        }
+        
+        window.addEventListener('resize', updateLayoutDirection);
+        initDividerDrag();
+    });
+    
+    // 自动调整 textarea 高度
+    function autoResizeTextarea(textarea) {
+        if (!textarea) return;
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+    }
+    
 
-        textView = editormd("text-view", {
-            width            : "101%",
-            fontSize         : "18px",
-            autoHeight       : true,
-            autoFocus        : false,
-            watch            : false,
-            toolbar          : false,
-            codeFold         : false,
-            searchReplace    : true,
-            lineNumbers      : true,
-            placeholder      : "双击 shfit 暂存文本到此处, 双击 ctrl 翻译。",
-            value            : "",
-            theme            : "default",
-            mode             : "text/html",
-            path             : 'editormd/lib/',
-            onload           : function() {
-                textViewElement = document.getElementById('text-view');
-                //textViewElement.style.display = "none"; 
-            },
-
+    // ========== 布局管理 ==========
+    function updateLayoutDirection() {
+        if (!isDualMode) return;
+        
+        var width = window.innerWidth;
+        var height = window.innerHeight;
+        
+        dualModeContainer.classList.remove('layout-horizontal', 'layout-vertical');
+        if (width >= height) {
+            dualModeContainer.classList.add('layout-horizontal');
+            applyPaneSize(true);
+        } else {
+            dualModeContainer.classList.add('layout-vertical');
+            applyPaneSize(false);
+        }
+    }
+    
+    function applyPaneSize(isHorizontal) {
+        var sourcePane = document.getElementById('source-pane-dual');
+        var translationPane = document.getElementById('translation-pane-dual');
+        
+        if (!sourcePane || !translationPane) return;
+        
+        if (isHorizontal) {
+            sourcePane.style.width = sourcePaneSize + '%';
+            sourcePane.style.height = '';
+            translationPane.style.width = (100 - sourcePaneSize) + '%';
+            translationPane.style.height = '';
+        } else {
+            sourcePane.style.width = '';
+            sourcePane.style.height = sourcePaneSize + '%';
+            translationPane.style.width = '';
+            translationPane.style.height = (100 - sourcePaneSize) + '%';
+        }
+    }
+    
+    function initDividerDrag() {
+        var divider = null;
+        var startPos = 0;
+        var startSize = 0;
+        var isHorizontal = false;
+        
+        document.addEventListener('mousedown', function(e) {
+            if (!isDualMode) return;
+            
+            var target = e.target;
+            if (target.classList.contains('dual-divider')) {
+                isResizing = true;
+                divider = target;
+                
+                isHorizontal = dualModeContainer.classList.contains('layout-horizontal');
+                startPos = isHorizontal ? e.clientX : e.clientY;
+                startSize = sourcePaneSize;
+                
+                e.preventDefault();
+                document.body.style.cursor = isHorizontal ? 'ew-resize' : 'ns-resize';
+            }
         });
         
-    });
-
-    full = function () {
-        textView.fullscreen();
-    }
-
-    updateMarkdown = function (markdown) {
-        linkMarkdown = document.getElementById('markdown-css');
-        linkMarkdown.href = "editormd/css/editormd.preview.css";
-        //隐藏text-view
-        textView.setValue("");
-        textViewElement.style.display = "none";
-        //显示markdown-view
-        markdownElement.style.display = "block";
-        $('#markdown-view').html("");
-        editormd.markdownToHTML("markdown-view", {
-            markdown: markdown,
-            htmlDecode: true,  
-            htmlDecode: "style,script,iframe",  
-            fontSize: "13px",
-            tex: true,    
-            autoFocus : false,
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            
+            var containerSize = isHorizontal ? dualModeContainer.offsetWidth : dualModeContainer.offsetHeight;
+            var currentPos = isHorizontal ? e.clientX : e.clientY;
+            var delta = currentPos - startPos;
+            var deltaPercent = (delta / containerSize) * 100;
+            
+            sourcePaneSize = Math.max(20, Math.min(80, startSize + deltaPercent));
+            applyPaneSize(isHorizontal);
+            
+            e.preventDefault();
+        });
+        
+        document.addEventListener('mouseup', function(e) {
+            if (isResizing) {
+                isResizing = false;
+                document.body.style.cursor = '';
+            }
         });
     }
 
-    updateText = function (text) {
-        linkMarkdown = document.getElementById('markdown-css');
-        linkMarkdown.href = "editormd/css/editormd.css";
-
-        $('#markdown-view').html("");
-        markdownElement.style.display = "none";
-        textViewElement.style.display = "block";
-        textView.setValue(text);
-    }
-
-    appendText = function (text) {
-
-        updateText(getText(text));
-    }
-
-    getText = function (text="") {
-        if(textView == null){
-            return "";
+    function setComparisonMode(enabled) {
+        if (enabled) {
+            // 切换到对照模式
+            singleModeContainer.classList.add('mode-hidden');
+            dualModeContainer.classList.add('mode-visible');
+            isDualMode = true;
+            updateLayoutDirection();
+            
+            // 同步原文内容
+            if (sourceTextareaDual) {
+                sourceTextareaDual.value = sourceText;
+                autoResizeTextarea(sourceTextareaDual);
+            }
+        } else {
+            // 切换到单栏模式
+            dualModeContainer.classList.remove('mode-visible');
+            singleModeContainer.classList.remove('mode-hidden');
+            isDualMode = false;
+            
+            // 同步原文内容
+            if (sourceTextareaSingle) {
+                sourceTextareaSingle.value = sourceText;
+                autoResizeTextarea(sourceTextareaSingle);
+            }
         }
-        return textView.getValue()+text;
     }
-    //getMarkdown = function () {
-    //    if(markdownView == null){
-    //        return "";
-    //    }
-    //    return markdownView.getMarkdown();
-    //}
-    //getHtml = function () {
-    //    if(markdownView == null){
-    //        return "";
-    //    }
-    //    return markdownView.getHTML();
-    //}
 
+    // ========== 原文区锁定 ==========
+    function lockSourcePane() {
+        isSourceLocked = true;
+        if (sourceTextareaSingle) sourceTextareaSingle.classList.add('state-locked');
+        if (sourceTextareaDual) sourceTextareaDual.classList.add('state-locked');
+    }
+    
+    function unlockSourcePane() {
+        isSourceLocked = false;
+        if (sourceTextareaSingle) sourceTextareaSingle.classList.remove('state-locked');
+        if (sourceTextareaDual) sourceTextareaDual.classList.remove('state-locked');
+    }
+    
+    function isSourcePaneLocked() {
+        return isSourceLocked;
+    }
+
+    // ========== 数据更新接口 ==========
+    function updateSource(text) {
+        sourceText = text || "";
+        
+        // 切换单栏模式显示为原文输入框
+        var translationView = document.getElementById('translation-view-single');
+        if (translationView) translationView.style.display = "none";
+        if (sourceTextareaSingle) {
+            sourceTextareaSingle.style.display = "block";
+            sourceTextareaSingle.value = sourceText;
+            autoResizeTextarea(sourceTextareaSingle);
+        }
+        
+        // 更新对照模式输入框内容
+        if (sourceTextareaDual) {
+            sourceTextareaDual.value = sourceText;
+            autoResizeTextarea(sourceTextareaDual);
+        }
+    }
+    
+    function appendSource(text) {
+        if (sourceText && text) {
+            sourceText = sourceText + "\n" + text;
+        } else {
+            sourceText = text || sourceText;
+        }
+        
+        updateSource(sourceText);
+        unlockSourcePane();
+    }
+    
+    function updateTranslation(markdown) {
+        translationText = markdown || "";
+        
+        var markdownConfig = {
+            markdown: translationText,
+            htmlDecode: true,
+            htmlDecode: "style,script,iframe",
+            fontSize: "13px",
+            tex: true,
+            autoFocus: false,
+        };
+        
+        // 切换单栏模式显示为翻译视图
+        var translationView = document.getElementById('translation-view-single');
+        if (sourceTextareaSingle) sourceTextareaSingle.style.display = "none";
+        if (translationView) translationView.style.display = "block";
+        
+        $('#translation-view-single').html("");
+        editormd.markdownToHTML("translation-view-single", markdownConfig);
+        
+        // 更新对照模式翻译显示
+        $('#translation-view-dual').html("");
+        editormd.markdownToHTML("translation-view-dual", markdownConfig);
+    }
+    
+    function getSource() {
+        return sourceText;
+    }
+
+    // ========== 查询接口 ==========
+    function isLocked() {
+        return isSourceLocked;
+    }
 </script>
 </html>
