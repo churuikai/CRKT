@@ -7,6 +7,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from pynput import keyboard
 
 from core.logger import get_logger
+from utils.selected_text import get_selected_text  # 预加载，避免首次调用延迟
 
 logger = get_logger("Listener")
 
@@ -67,7 +68,7 @@ class Listener(QThread):
         
         # 各热键的时间戳
         self._key_times: Dict[str, float] = {"ctrl": 0, "shift": 0, "alt": 0}
-        self._key_cooldowns: Dict[str, bool] = {"ctrl": False, "shift": False, "alt": False}
+        self._cooldown_end_times: Dict[str, float] = {"ctrl": 0, "shift": 0, "alt": 0}
         
         self._text_before: str = ""
         self._is_append: bool = False
@@ -119,8 +120,8 @@ class Listener(QThread):
             
             current_time = time.time()
             
-            # 检查是否在冷却期
-            if self._key_cooldowns.get(key_type, False):
+            # 检查是否在冷却期（非阻塞方式）
+            if current_time < self._cooldown_end_times.get(key_type, 0):
                 return
             
             # 检查是否双击
@@ -137,10 +138,9 @@ class Listener(QThread):
         """处理双击事件。"""
         # 检查是否是翻译热键
         if key_type == self._translate_key and self._translate_enabled:
-            self._key_cooldowns[key_type] = True
             self._on_translate()
-            QThread.msleep(int(COOLDOWN_TIME * 1000))
-            self._key_cooldowns[key_type] = False
+            # 使用时间戳实现非阻塞冷却
+            self._cooldown_end_times[key_type] = time.time() + COOLDOWN_TIME
         
         # 检查是否是附加热键
         elif key_type == self._append_key and self._append_enabled:
@@ -169,27 +169,17 @@ class Listener(QThread):
     
     def _on_append(self) -> None:
         """处理附加热键事件。"""
-        try:
-            keyboard.Controller().press(keyboard.Key.ctrl)
-            # 重置翻译热键时间避免触发
-            self._key_times[self._translate_key] = 0
-            text = self._get_selected_text()
-            self._text_before = text
-            self.append_triggered.emit(text)
-            self._is_append = True
-        except Exception as e:
-            logger.error(f"附加热键处理错误: {e}")
+        # 重置翻译热键时间避免触发
+        self._key_times[self._translate_key] = 0
+        text = self._get_selected_text()
+        self._text_before = text
+        self.append_triggered.emit(text)
+        self._is_append = True
     
     def _get_selected_text(self) -> str:
         """获取选中的文本。"""
         logger.debug("正在获取选中文本...")
-        try:
-            from utils.selected_text import get_selected_text
-            text = get_selected_text()
-        except Exception as e:
-            logger.error(f"获取选中文本时出错: {e}")
-            text = ""
-        
+        text = get_selected_text()
         text = self._format_text(text)
         
         if text:

@@ -14,17 +14,24 @@ logger = get_logger("ConfigManager")
 class ConfigManager:
     """配置管理器，负责加载、保存和管理应用配置。"""
     
-    DEFAULT_PROMPT = (
-        "你将作为一个专业的翻译助手，任务是将{source_language}翻译成{target_language}\n"
-        "翻译时需要遵循以下要求：\n"
-        "1. 准确性：确保翻译内容的准确性，保留专业术语和专有名词，用反引号`标出。\n"
-        "2. 格式要求：使用 Markdown 语法输出内容。\n"
-        "3. 公式格式：任何时候所有公式、数学字母都必须使用四个$包围，忽略任何tag和序号。\n"
-        "4. 使用常见字符: 任何公式中不常见的字符替换成常见标准的字符，输出latex代码，确保katex可以解析，例如:\n"
-        "   - '𝑆'换成'S', '𝐹'换成'F', '𝑛'换成'n', 'i'换成i\n"
-        "   - '...' 换成 '\\cdots', '.'换成 '\\cdot'\n"
-        "5. 注意，如果是单个单词或短语，你可以精炼地道的解释该单词/短语的含义，给出音标和简单例证。\n"
-        "不要给出多余输出，直接翻译以下内容：\n{selected_text}"
+
+    DEFAULT_PROMPT =(
+        "You are a professional academic translator, tasked with translating from {source_language} to {target_language}.\n"
+        "\n"
+        "Basic Requirements:\n"
+        "1. Format Requirement: Ignore input formatting. Output in Markdown format (directly, not in a code block).\n"
+        "2. Retain Proper Nouns and Terminology, marking them with ``.\n"
+        "\n"
+        "Extended Requirements:\n"
+        "1. Formula Formatting: Ignore input formula formatting, tags, and numbering. Output formulas and mathematical symbols using LaTeX format, enclosed in double dollar signs ($$…$$), for example, $$r_t > 1$$.\n"
+        "2. Use Standard Characters: Replace uncommon characters in input formulas (resulting from PDF copying or OCR scanning) with standard characters and LaTeX code, for example:\n"
+        "  - ‘𝑆’ replaced with ‘S’, ‘i’ replaced with i\n"
+        "  - ‘…’ replaced with ‘cdots’, ‘.’ replaced with ‘cdot’\n"
+        "\n"
+        "Input:\n"
+        "\n{selected_text}\n"
+        "\n"
+        "Please output the result only:\n"
     )
     
     def __init__(self, app_dir: str):
@@ -94,11 +101,12 @@ class ConfigManager:
             ],
             selected_api="默认API",
             models=[
-                "gpt-4.1-nano", "gpt-4o-mini", "gpt-4o",
-                "gemini-2.5-flash", "doubao-lite-32k",
+                "gpt-4o-mini",
+                "gemini-2.5-flash-lite",
+                "claude-4-5-haiku",
                 "deepseek-chat"
             ],
-            selected_model="gpt-4.1-nano",
+            selected_model="gpt-4o-mini",
             translate_hotkey=HotkeyConfig("ctrl", True),
             append_hotkey=HotkeyConfig("shift", True),
             start_on_boot=False,
@@ -136,19 +144,10 @@ class ConfigManager:
             return default_config
     
     def _sync_selected_skill_prompt(self, config: AppConfig) -> None:
-        """同步当前选中技能的提示词到prompt配置。"""
+        """同步当前选中的提示词到prompt配置。"""
         skill = config.get_selected_skill()
-        
-        if skill:
-            config.prompt = skill.prompt
-            if config.selected_skill != skill.name:
-                config.selected_skill = skill.name
-                logger.warning(f"未找到选中的技能，使用: {skill.name}")
-        else:
-            logger.warning("技能列表为空，使用默认提示词")
-            config.prompt = "Translate the following text: {selected_text}"
-            config.selected_skill = "通用翻译"
-            config.skills = [Skill(name="通用翻译", prompt=config.prompt)]
+        config.prompt = skill.prompt
+        config.selected_skill = skill.name
     
     def _save_config(self, config: Optional[AppConfig] = None) -> bool:
         """

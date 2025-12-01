@@ -82,6 +82,8 @@ class AppPresenter:
         self._display_view.window_closed.connect(self._on_window_closed)
         self._display_view.text_ready.connect(self._on_translate_text)
         self._display_view.page_ready.connect(self._apply_initial_config)
+        self._display_view.history_navigate_up.connect(self._on_history_navigate_up)
+        self._display_view.history_navigate_down.connect(self._on_history_navigate_down)
         
         # 监听器事件
         self._listener.translate_triggered.connect(self._on_get_text)
@@ -262,7 +264,14 @@ class AppPresenter:
             self._user_minimized = False
             self._display_view.user_closed = False
             
-            self._history_manager.append_source_text(text)
+            # 如果在历史模式，热键只切换回当前模式，不执行追加
+            if self._history_manager.is_in_history_mode():
+                self._history_manager.exit_history_mode()
+                self._display_view.exit_history_mode()
+                logger.debug("历史模式下触发附加热键，已切换回当前模式")
+                return
+            
+            # JavaScript 负责在光标位置插入文本
             self._display_view.append_source(text, show_window=True)
             
             logger.debug(f"文本已追加到原文区: {len(text)} 字符")
@@ -275,18 +284,27 @@ class AppPresenter:
             self._user_minimized = False
             self._display_view.user_closed = False
             
+            # 如果在历史模式，热键只切换回当前模式，不执行翻译
+            if self._history_manager.is_in_history_mode():
+                self._history_manager.exit_history_mode()
+                self._display_view.exit_history_mode()
+                logger.debug("历史模式下触发热键，已切换回当前模式")
+                return
+            
+            # 如果窗口未显示过，直接使用传入的文本（避免 JS 未加载导致回调不执行）
+            if not self._display_view.isVisible():
+                self._on_translate_text(text)
+                return
+            
             # 获取当前状态并决定逻辑
             def on_locked(is_locked):
                 def on_source_text(current_text):
                     if is_locked:
-                        # 锁定：替换
+                        # 锁定状态：替换原文区为选中内容并翻译
                         final_text = text if text else current_text
                     else:
-                        # 解锁：附加
-                        if current_text and text:
-                            final_text = current_text + "\n" + text
-                        else:
-                            final_text = text if text else current_text
+                        # 解锁状态：直接翻译原文区，不获取选中内容
+                        final_text = current_text
                     
                     # 执行翻译
                     self._on_translate_text(final_text)
@@ -303,8 +321,7 @@ class AppPresenter:
             if not text.strip():
                 return
             
-            # 设置当前原文
-            self._history_manager.set_source_text(text)
+            # 更新显示
             self._display_view.update_source(text, show_window=not self._user_minimized)
             
             # 显示等待状态
@@ -407,6 +424,38 @@ class AppPresenter:
             logger.error(f"翻译失败: {result.error}")
         
         self._current_translation_context = None
+    
+    def _on_history_navigate_up(self) -> None:
+        """处理历史记录上翻。"""
+        record = self._history_manager.navigate_up()
+        if record:
+            # 进入历史模式，注入历史数据
+            history_index = self._history_manager.get_history_pointer()
+            self._display_view.enter_history_mode(
+                source_text=record.source_text,
+                translation_text=record.translated_text,
+                history_index=history_index,
+            )
+            logger.debug(f"上翻到历史记录: {record.id[:8]}...")
+        else:
+            logger.debug("已经是最旧的历史记录")
+    
+    def _on_history_navigate_down(self) -> None:
+        """处理历史记录下翻。"""
+        record = self._history_manager.navigate_down()
+        if record is None:
+            # 回到当前模式
+            self._display_view.exit_history_mode()
+            logger.debug("下翻回到当前模式")
+        else:
+            # 继续在历史模式
+            history_index = self._history_manager.get_history_pointer()
+            self._display_view.enter_history_mode(
+                source_text=record.source_text,
+                translation_text=record.translated_text,
+                history_index=history_index,
+            )
+            logger.debug(f"下翻到历史记录: {record.id[:8]}...")
     
     def _handle_error(self, error_msg: str) -> None:
         """统一错误处理。"""

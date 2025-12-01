@@ -89,7 +89,7 @@ def create_application() -> tuple:
         translate_enabled=config.translate_hotkey.enabled,
         append_enabled=config.append_hotkey.enabled,
     )
-    
+        
     # 设置对话框工厂函数（依赖注入）
     def settings_dialog_factory(**kwargs):
         return SettingsDialog(**kwargs)
@@ -137,7 +137,7 @@ def main() -> int:
         error_log_path = os.path.join(app_dir, "startup_error.log")
         with open(error_log_path, "w", encoding="utf-8") as f:
             f.write(error_msg)
-        
+            
         # 显示错误消息
         if getattr(sys, 'frozen', False):
             QMessageBox.critical(None, "启动错误", error_msg)

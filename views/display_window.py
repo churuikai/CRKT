@@ -4,14 +4,28 @@ import sys
 import os
 from typing import Optional, Callable
 
-from PyQt5.QtWidgets import QMainWindow, QApplication, QDesktopWidget
+from PyQt5.QtWidgets import QMainWindow, QApplication, QDesktopWidget, QPushButton, QWidget, QHBoxLayout, QLabel, QVBoxLayout
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal, QTimer
-from PyQt5.QtGui import QCursor
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtGui import QCursor, QIcon
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
 
 from core.logger import get_logger
 
 logger = get_logger("DisplayWindowView")
+
+
+class CustomWebEnginePage(QWebEnginePage):
+    """自定义 WebEnginePage，用于接收前端 JS 的消息。"""
+    
+    navigate_up_requested = pyqtSignal()
+    navigate_down_requested = pyqtSignal()
+    
+    def javaScriptConsoleMessage(self, level, message, line, source):
+        """接收前端 console.log 消息。"""
+        if message == 'CRKT_ACTION:navigate-up':
+            self.navigate_up_requested.emit()
+        elif message == 'CRKT_ACTION:navigate-down':
+            self.navigate_down_requested.emit()
 
 
 class DisplayWindowView(QMainWindow):
@@ -22,6 +36,8 @@ class DisplayWindowView(QMainWindow):
     window_state_changed = pyqtSignal(object)  # 窗口状态改变
     window_closed = pyqtSignal()  # 窗口关闭
     page_ready = pyqtSignal()  # 页面加载完成
+    history_navigate_up = pyqtSignal()  # 历史记录上翻
+    history_navigate_down = pyqtSignal()  # 历史记录下翻
     
     # 默认窗口尺寸
     DEFAULT_WIDTH = 1000
@@ -53,22 +69,98 @@ class DisplayWindowView(QMainWindow):
     def _setup_window(self) -> None:
         """设置窗口属性。"""
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-        self.setWindowTitle(' ')
+        self.setWindowTitle('CRKT Translator')
         self.setGeometry(0, 0, self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT)
         
         self.setStyleSheet("""
             QMainWindow {
                 background-color: #f5f5f5;
-                border: 1px solid #ddd;
-                border-radius: 10px;
             }
         """)
     
+    def _setup_history_toolbar(self) -> QWidget:
+        """设置历史翻阅工具栏。"""
+        toolbar = QWidget()
+        toolbar.setFixedHeight(24)
+        toolbar.setStyleSheet("""
+            QWidget {
+                background-color: #ffffff;
+            }
+            QPushButton {
+                background-color: #f0f0f0;
+                border: 1px solid #d5d5d5;
+                border-radius: 3px;
+                font-size: 13px;
+                color: #444444;
+            }
+            QPushButton:hover {
+                background-color: #e5e5e5;
+                border-color: #c0c0c0;
+            }
+            QPushButton:pressed {
+                background-color: #d8d8d8;
+            }
+            QLabel {
+                color: #888888;
+                font-size: 14px;
+            }
+        """)
+        
+        layout = QHBoxLayout(toolbar)
+        layout.setContentsMargins(6, 2, 6, 0)
+        layout.setSpacing(4)
+        
+        # 历史记录上翻按钮
+        self._btn_history_up = QPushButton("↑", toolbar)
+        self._btn_history_up.setFixedSize(22, 20)
+        self._btn_history_up.setToolTip("上翻历史记录")
+        self._btn_history_up.setFocusPolicy(Qt.NoFocus)
+        self._btn_history_up.clicked.connect(self._on_history_up_clicked)
+        
+        # 历史记录下翻按钮
+        self._btn_history_down = QPushButton("↓", toolbar)
+        self._btn_history_down.setFixedSize(22, 20)
+        self._btn_history_down.setToolTip("下翻历史记录")
+        self._btn_history_down.setFocusPolicy(Qt.NoFocus)
+        self._btn_history_down.clicked.connect(self._on_history_down_clicked)
+        
+        # 历史位置提示标签
+        self._label_history_info = QLabel("", toolbar)
+        self._label_history_info.setVisible(False)
+        
+        layout.addWidget(self._btn_history_up)
+        layout.addWidget(self._btn_history_down)
+        layout.addWidget(self._label_history_info)
+        layout.addStretch()
+        
+        return toolbar
+    
     def _setup_web_view(self) -> None:
         """设置WebEngineView。"""
-        self._web_view = QWebEngineView(self)
+        # 创建历史工具栏
+        toolbar = self._setup_history_toolbar()
+        
+        # 创建web view 和自定义 page
+        self._web_view = QWebEngineView()
+        self._custom_page = CustomWebEnginePage(self._web_view)
+        self._web_view.setPage(self._custom_page)
         self._web_view.setZoomFactor(1.75)
-        self.setCentralWidget(self._web_view)
+        self._web_view.setContextMenuPolicy(Qt.NoContextMenu)
+        
+        # 连接自定义页面的信号
+        self._custom_page.navigate_up_requested.connect(self._on_history_up_clicked)
+        self._custom_page.navigate_down_requested.connect(self._on_history_down_clicked)
+        
+        # 组合布局
+        vbox = QVBoxLayout()
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(0)
+        vbox.addWidget(toolbar)
+        vbox.addWidget(self._web_view)
+        
+        wrapper = QWidget()
+        wrapper.setLayout(vbox)
+        self.setCentralWidget(wrapper)
     
     def _load_html(self) -> None:
         """加载HTML文件。"""
@@ -89,8 +181,8 @@ class DisplayWindowView(QMainWindow):
         """页面加载完成回调。"""
         if success:
             # 延迟触发 page_ready 信号，确保 JS 完全加载
-            QTimer.singleShot(200, self.page_ready.emit)
-            logger.debug("页面加载完成，将在 1 秒后触发初始化")
+            QTimer.singleShot(800, self.page_ready.emit)
+            logger.debug("页面加载完成，将在 800ms 后触发初始化")
         else:
             logger.error("页面加载失败")
     
@@ -237,6 +329,42 @@ class DisplayWindowView(QMainWindow):
         """
         self._execute_js_with_callback('isLocked();', callback)
     
+    def enter_history_mode(self, source_text: str, translation_text: str, history_index: int = 0) -> None:
+        """
+        进入历史模式，显示历史记录。
+        
+        Args:
+            source_text: 历史原文
+            translation_text: 历史翻译结果
+            history_index: 历史记录索引（0为最新）
+        """
+        source_escaped = source_text.replace("`", "\\`").replace("\\", "\\\\")
+        translation_escaped = translation_text.replace("`", "\\`")
+        js = f'enterHistoryMode(`{source_escaped}`, `{translation_escaped}`);'
+        self._execute_js(js)
+        
+        # 更新历史位置提示
+        self._label_history_info.setText(f"上{history_index + 1}条")
+        self._label_history_info.setVisible(True)
+        
+        logger.debug(f"进入历史模式: 第{history_index}条")
+    
+    def exit_history_mode(self) -> None:
+        """退出历史模式，回到当前模式。"""
+        self._execute_js('exitHistoryMode();')
+        
+        # 隐藏历史位置提示
+        self._label_history_info.setVisible(False)
+        
+        logger.debug("退出历史模式")
+    
+    def _on_history_up_clicked(self) -> None:
+        """历史记录上翻按钮点击。"""
+        self.history_navigate_up.emit()
+    
+    def _on_history_down_clicked(self) -> None:
+        """历史记录下翻按钮点击。"""
+        self.history_navigate_down.emit()
     
     def _on_text_ready(self, text: str) -> None:
         """文本准备好时的回调。"""

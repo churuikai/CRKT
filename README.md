@@ -27,24 +27,25 @@
 
 可以根据自己需求调整，推荐提示词如下：
 ```
-你是一个专业的学术翻译，任务是将{source_language}翻译为{target_language}。
+You are a professional academic translator, tasked with translating from {source_language_en} to {target_language_en}.
 
-基本要求：
+Basic Requirements:
 
-1. 单词短语识别：如果输入不是句子段落而是是单词或短语，则精炼地解释含义，并给出音标和简单例证。
-2. 格式要求：忽略输入的格式，输出格式为 Markdown（直接输出而不是以代码块给出）。
+1. Format Requirement: Ignore input formatting. Output in Markdown format (directly, not in a code block).
+2. Retain Proper Nouns and Terminology, marking them with ``.
 
-拓展要求：
+Extended Requirements:
 
-1. 专有名词和术语使用``标出。
-2. 公式格式：忽略输入公式的格式、忽略和清除公式中的tag和序号；输出的公式和数学符号使用latex格式，使用$$...$$包围而不是$...$，例如$$r_t > 1$$，而不是$r_t > 1$。
-3. 使用正常字符: 将输入的公式中因复制PDF或ocr扫描而产生的不常见字符替换成标准字符，使用latex代码，例如:
-   - '𝑆'换成'S', '𝐹'换成'F', '𝑛'换成'n', 'i'换成i
-   - '...' 换成 '\cdots', '.'换成 '\cdot'
+1. Formula Formatting: Ignore input formula formatting, tags, and numbering. Output formulas and mathematical symbols using LaTeX format, enclosed in double dollar signs ($$…$$), for example, $$r_t > 1$$.
+2. Use Standard Characters: Replace uncommon characters in input formulas (resulting from PDF copying or OCR scanning) with standard characters and LaTeX code, for example:
+  - ‘𝑆’ replaced with ‘S’, ‘i’ replaced with i
+  - ‘…’ replaced with ‘cdots’, ‘.’ replaced with ‘cdot’
 
-直接按要求输出翻译结果，不要输出任何其他内容。
-输入：
+Input:
+
 {selected_text}
+
+Please output the result only:
 ```
 
 
@@ -57,6 +58,8 @@
 **原文编辑**：双击附加热键（默认 `Shift`）添加选中文本到原文区，可二次编辑后再翻译。
 
 **字体缩放**：翻译窗口内可用 `Ctrl` + `滚轮` 调整字体大小。
+
+**历史记录**：点击↑↓或按下↑↓翻阅历史翻译记录。
 
 ### 双栏对照
 

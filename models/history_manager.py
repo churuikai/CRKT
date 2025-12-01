@@ -28,8 +28,8 @@ class HistoryManager:
         """
         self._history_path = history_path
         self._records: List[TranslationRecord] = []
-        self._current_source_text: str = ""  # 当前原文区内容
         self._observers: List[Callable[[TranslationRecord], None]] = []
+        self._history_pointer = -1  # -1表示当前模式，>=0表示历史模式
         
         self._load()
         logger.info(f"历史管理器初始化完成，已加载 {len(self._records)} 条记录")
@@ -45,13 +45,11 @@ class HistoryManager:
                     TranslationRecord.from_dict(r) 
                     for r in data.get("records", [])
                 ]
-                self._current_source_text = data.get("current_source_text", "")
                 
                 logger.debug(f"加载了 {len(self._records)} 条历史记录")
         except Exception as e:
             logger.error(f"加载历史记录出错: {e}")
             self._records = []
-            self._current_source_text = ""
     
     def save(self) -> bool:
         """
@@ -63,7 +61,6 @@ class HistoryManager:
         try:
             data = {
                 "records": [r.to_dict() for r in self._records],
-                "current_source_text": self._current_source_text,
             }
             
             # 确保目录存在
@@ -95,40 +92,6 @@ class HistoryManager:
                 observer(record)
             except Exception as e:
                 logger.error(f"通知观察者时出错: {e}")
-    
-    # ==================== 原文区管理 ====================
-    
-    def set_source_text(self, text: str) -> None:
-        """
-        设置当前原文区内容（替换）。
-        
-        Args:
-            text: 原文文本
-        """
-        self._current_source_text = text
-        logger.debug(f"原文区已设置: {len(text)} 字符")
-    
-    def append_source_text(self, text: str) -> None:
-        """
-        追加文本到原文区。
-        
-        Args:
-            text: 要追加的文本
-        """
-        if self._current_source_text:
-            self._current_source_text += "\n" + text
-        else:
-            self._current_source_text = text
-        logger.debug(f"原文区已追加: {len(text)} 字符，总计: {len(self._current_source_text)} 字符")
-    
-    def get_source_text(self) -> str:
-        """获取当前原文区内容。"""
-        return self._current_source_text
-    
-    def clear_source_text(self) -> None:
-        """清空原文区。"""
-        self._current_source_text = ""
-        logger.debug("原文区已清空")
     
     # ==================== 历史记录管理 ====================
     
@@ -272,4 +235,60 @@ class HistoryManager:
     def record_count(self) -> int:
         """获取记录总数。"""
         return len(self._records)
+    
+    # ==================== 历史翻阅功能 ====================
+    
+    def navigate_up(self) -> Optional[TranslationRecord]:
+        """
+        上翻历史记录。
+        
+        Returns:
+            翻阅到的历史记录，如果无法上翻返回None
+        """
+        if len(self._records) == 0:
+            return None
+        
+        if self._history_pointer == -1:
+            # 从当前模式进入历史模式
+            self._history_pointer = 0
+        elif self._history_pointer < len(self._records) - 1:
+            # 在历史模式中继续上翻
+            self._history_pointer += 1
+        else:
+            # 已经是最旧的记录
+            return None
+        
+        logger.debug(f"上翻到历史记录: 指针={self._history_pointer}")
+        return self._records[self._history_pointer]
+    
+    def navigate_down(self) -> Optional[TranslationRecord]:
+        """
+        下翻历史记录。
+        
+        Returns:
+            翻阅到的历史记录，如果回到当前模式返回None
+        """
+        if self._history_pointer <= 0:
+            # 回到当前模式
+            self._history_pointer = -1
+            logger.debug("下翻回到当前模式")
+            return None
+        
+        # 在历史模式中下翻
+        self._history_pointer -= 1
+        logger.debug(f"下翻到历史记录: 指针={self._history_pointer}")
+        return self._records[self._history_pointer]
+    
+    def exit_history_mode(self) -> None:
+        """退出历史模式，回到当前模式。"""
+        self._history_pointer = -1
+        logger.debug("退出历史模式")
+    
+    def is_in_history_mode(self) -> bool:
+        """是否处于历史模式。"""
+        return self._history_pointer >= 0
+    
+    def get_history_pointer(self) -> int:
+        """获取历史指针。"""
+        return self._history_pointer
 

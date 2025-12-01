@@ -168,9 +168,15 @@
 <script class="markdown" src="editormd/lib/prettify.min.js"></script>
 <script>
     // ========== 数据层 ==========
-    var sourceText = "";              // 原文内容
-    var translationText = "";         // 翻译内容
+    // 当前模式数据（前端维护）
+    var sourceText = "";              // 当前原文内容
+    var translationText = "";         // 当前翻译内容
     var isSourceLocked = false;       // 原文区是否锁定
+    
+    // 历史模式数据（后端注入）
+    var historySourceText = "";       // 历史原文内容
+    var historyTranslationText = "";  // 历史翻译内容
+    var isHistoryMode = false;        // 是否处于历史模式
     
     // ========== DOM元素 ==========
     var sourceTextareaSingle = null;  // 单栏模式：原文输入框
@@ -182,7 +188,7 @@
     // ========== 状态变量 ==========
     var isDualMode = false;           // 是否为对照模式
     var isResizing = false;           // 是否正在拖动分隔线
-    var sourcePaneSize = 50;          // 原文区大小百分比（默认50%）
+    var sourcePaneSize = 40;          // 原文区大小百分比（默认40%）
     
     // ========== 初始化 ==========
     $(function () {
@@ -200,31 +206,73 @@
         // 绑定输入事件
         if (sourceTextareaSingle) {
             sourceTextareaSingle.addEventListener('input', function() {
+                // 历史模式下不允许编辑
+                if (isHistoryMode) {
+                    sourceTextareaSingle.value = historySourceText;
+                    return;
+                }
                 sourceText = sourceTextareaSingle.value;
                 autoResizeTextarea(sourceTextareaSingle);
                 if (isSourceLocked) {
                     isSourceLocked = false;
-                    sourceTextareaSingle.classList.remove('state-locked');
-                    sourceTextareaDual.classList.remove('state-locked');
+                    if (sourceTextareaSingle) sourceTextareaSingle.classList.remove('state-locked');
+                    if (sourceTextareaDual) sourceTextareaDual.classList.remove('state-locked');
                 }
             });
         }
         
         if (sourceTextareaDual) {
             sourceTextareaDual.addEventListener('input', function() {
+                // 历史模式下不允许编辑
+                if (isHistoryMode) {
+                    sourceTextareaDual.value = historySourceText;
+                    return;
+                }
                 sourceText = sourceTextareaDual.value;
                 autoResizeTextarea(sourceTextareaDual);
                 if (isSourceLocked) {
                     isSourceLocked = false;
-                    sourceTextareaSingle.classList.remove('state-locked');
-                    sourceTextareaDual.classList.remove('state-locked');
+                    if (sourceTextareaSingle) sourceTextareaSingle.classList.remove('state-locked');
+                    if (sourceTextareaDual) sourceTextareaDual.classList.remove('state-locked');
                 }
             });
         }
         
         window.addEventListener('resize', updateLayoutDirection);
         initDividerDrag();
+        initKeyboardNavigation();
     });
+    
+    // 初始化键盘导航（上下键历史翻阅）
+    function initKeyboardNavigation() {
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+                return;
+            }
+            
+            // 历史模式下，上下键始终用于翻阅
+            if (isHistoryMode) {
+                console.log(e.key === 'ArrowUp' ? 'CRKT_ACTION:navigate-up' : 'CRKT_ACTION:navigate-down');
+                e.preventDefault();
+                return;
+            }
+            
+            // 检查焦点是否在可编辑的 textarea 上
+            var activeEl = document.activeElement;
+            var isEditableTextarea = activeEl && 
+                activeEl.tagName === 'TEXTAREA' && 
+                !activeEl.readOnly && 
+                activeEl.offsetParent !== null;  // offsetParent 为 null 表示元素隐藏
+            
+            if (isEditableTextarea) {
+                return;  // 让光标正常移动
+            }
+            
+            // 其他情况，上下键用于历史翻阅
+            console.log(e.key === 'ArrowUp' ? 'CRKT_ACTION:navigate-up' : 'CRKT_ACTION:navigate-down');
+            e.preventDefault();
+        });
+    }
     
     // 自动调整 textarea 高度
     function autoResizeTextarea(textarea) {
@@ -236,7 +284,7 @@
 
     // ========== 布局管理 ==========
     function updateLayoutDirection() {
-        if (!isDualMode) return;
+        if (!isDualMode || !dualModeContainer) return;
         
         var width = window.innerWidth;
         var height = window.innerHeight;
@@ -277,7 +325,7 @@
         var isHorizontal = false;
         
         document.addEventListener('mousedown', function(e) {
-            if (!isDualMode) return;
+            if (!isDualMode || !dualModeContainer) return;
             
             var target = e.target;
             if (target.classList.contains('dual-divider')) {
@@ -294,7 +342,7 @@
         });
         
         document.addEventListener('mousemove', function(e) {
-            if (!isResizing) return;
+            if (!isResizing || !dualModeContainer) return;
             
             var containerSize = isHorizontal ? dualModeContainer.offsetWidth : dualModeContainer.offsetHeight;
             var currentPos = isHorizontal ? e.clientX : e.clientY;
@@ -315,7 +363,22 @@
         });
     }
 
-    function setComparisonMode(enabled) {
+    function setComparisonMode(enabled, retryCount) {
+        retryCount = retryCount || 0;
+        
+        // 检查 DOM 是否已初始化
+        if (!singleModeContainer || !dualModeContainer) {
+            if (retryCount < 5) {
+                console.warn('DOM 元素未初始化，100ms 后重试 (第 ' + (retryCount + 1) + ' 次)');
+                setTimeout(function() {
+                    setComparisonMode(enabled, retryCount + 1);
+                }, 100);
+            } else {
+                console.error('DOM 元素初始化失败，已重试 5 次');
+            }
+            return;
+        }
+        
         if (enabled) {
             // 切换到对照模式
             singleModeContainer.classList.add('mode-hidden');
@@ -359,9 +422,12 @@
         return isSourceLocked;
     }
 
-    // ========== 数据更新接口 ==========
+    // ========== 数据更新接口（当前模式） ==========
     function updateSource(text) {
         sourceText = text || "";
+        
+        // 如果在历史模式，不更新当前数据
+        if (isHistoryMode) return;
         
         // 切换单栏模式显示为原文输入框
         var translationView = document.getElementById('translation-view-single');
@@ -380,18 +446,72 @@
     }
     
     function appendSource(text) {
-        if (sourceText && text) {
-            sourceText = sourceText + "\n" + text;
-        } else {
-            sourceText = text || sourceText;
+        if (!text) return;
+        
+        // 如果在历史模式，不允许追加
+        if (isHistoryMode) return;
+        
+        // 单栏模式：确保原文输入框可见
+        if (!isDualMode) {
+            var translationView = document.getElementById('translation-view-single');
+            if (translationView) translationView.style.display = "none";
+            if (sourceTextareaSingle) sourceTextareaSingle.style.display = "block";
         }
         
-        updateSource(sourceText);
+        // 获取当前激活的 textarea
+        var activeTextarea = isDualMode ? sourceTextareaDual : sourceTextareaSingle;
+        if (!activeTextarea) return;
+        
+        // 保存外部容器的滚动位置
+        var scrollContainer = activeTextarea.parentElement.parentElement;
+        var scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+        
+        // 获取光标位置
+        var start = activeTextarea.selectionStart;
+        var end = activeTextarea.selectionEnd;
+        var currentValue = activeTextarea.value;
+        
+        // 在光标位置直接插入文本
+        var prefix = currentValue.substring(0, start);
+        var suffix = currentValue.substring(end);
+        var newValue = prefix + text + suffix;
+        
+        // 更新内容
+        sourceText = newValue;
+        activeTextarea.value = newValue;
+        
+        // 设置光标位置到插入文本之后
+        var newCursorPos = start + text.length;
+        activeTextarea.selectionStart = newCursorPos;
+        activeTextarea.selectionEnd = newCursorPos;
+        
+        // 同步另一个 textarea
+        var otherTextarea = isDualMode ? sourceTextareaSingle : sourceTextareaDual;
+        if (otherTextarea) {
+            otherTextarea.value = newValue;
+        }
+        
+        // 自动调整高度
+        autoResizeTextarea(activeTextarea);
+        if (otherTextarea) autoResizeTextarea(otherTextarea);
+        
+        // 恢复滚动位置（必须在 autoResize 之后）
+        if (scrollContainer) {
+            scrollContainer.scrollTop = scrollTop;
+        }
+        
+        // 聚焦（不使用 focus，避免滚动）
+        activeTextarea.setSelectionRange(newCursorPos, newCursorPos);
+        
+        // 解锁原文区
         unlockSourcePane();
     }
     
     function updateTranslation(markdown) {
         translationText = markdown || "";
+        
+        // 如果在历史模式，不更新当前数据
+        if (isHistoryMode) return;
         
         var markdownConfig = {
             markdown: translationText,
@@ -416,12 +536,103 @@
     }
     
     function getSource() {
-        return sourceText;
+        return isHistoryMode ? historySourceText : sourceText;
     }
 
     // ========== 查询接口 ==========
     function isLocked() {
         return isSourceLocked;
+    }
+    
+    // ========== 历史模式接口 ==========
+    function enterHistoryMode(source, translation) {
+        isHistoryMode = true;
+        historySourceText = source || "";
+        historyTranslationText = translation || "";
+        
+        var markdownConfig = {
+            markdown: historyTranslationText,
+            htmlDecode: true,
+            htmlDecode: "style,script,iframe",
+            fontSize: "13px",
+            tex: true,
+            autoFocus: false,
+        };
+        
+        if (isDualMode) {
+            // 对照模式：显示原文和翻译
+            if (sourceTextareaDual) {
+                sourceTextareaDual.value = historySourceText;
+                sourceTextareaDual.readOnly = true;
+                sourceTextareaDual.style.backgroundColor = "#f9f9f9";
+                autoResizeTextarea(sourceTextareaDual);
+            }
+            
+            $('#translation-view-dual').html("");
+            editormd.markdownToHTML("translation-view-dual", markdownConfig);
+        } else {
+            // 单栏模式：只显示翻译结果
+            var translationView = document.getElementById('translation-view-single');
+            if (sourceTextareaSingle) sourceTextareaSingle.style.display = "none";
+            if (translationView) translationView.style.display = "block";
+            
+            $('#translation-view-single').html("");
+            editormd.markdownToHTML("translation-view-single", markdownConfig);
+        }
+    }
+    
+    function exitHistoryMode() {
+        isHistoryMode = false;
+        historySourceText = "";
+        historyTranslationText = "";
+        
+        // 恢复当前模式数据
+        if (isDualMode) {
+            if (sourceTextareaDual) {
+                sourceTextareaDual.value = sourceText;
+                sourceTextareaDual.readOnly = false;
+                sourceTextareaDual.style.backgroundColor = "";
+                autoResizeTextarea(sourceTextareaDual);
+            }
+            
+            var markdownConfig = {
+                markdown: translationText,
+                htmlDecode: true,
+                htmlDecode: "style,script,iframe",
+                fontSize: "13px",
+                tex: true,
+                autoFocus: false,
+            };
+            $('#translation-view-dual').html("");
+            editormd.markdownToHTML("translation-view-dual", markdownConfig);
+        } else {
+            // 单栏模式：恢复原文输入框或翻译结果
+            var translationView = document.getElementById('translation-view-single');
+            if (translationText) {
+                // 有翻译结果，显示翻译
+                if (sourceTextareaSingle) sourceTextareaSingle.style.display = "none";
+                if (translationView) translationView.style.display = "block";
+                
+                var markdownConfig = {
+                    markdown: translationText,
+                    htmlDecode: true,
+                    htmlDecode: "style,script,iframe",
+                    fontSize: "13px",
+                    tex: true,
+                    autoFocus: false,
+                };
+                $('#translation-view-single').html("");
+                editormd.markdownToHTML("translation-view-single", markdownConfig);
+            } else {
+                // 没有翻译结果，显示原文输入框
+                if (translationView) translationView.style.display = "none";
+                if (sourceTextareaSingle) {
+                    sourceTextareaSingle.style.display = "block";
+                    sourceTextareaSingle.value = sourceText;
+                    autoResizeTextarea(sourceTextareaSingle);
+                }
+            }
+        }
     }
 </script>
 </html>
