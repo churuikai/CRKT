@@ -29,6 +29,11 @@ pub fn run() {
             ));
             app.manage(cache_manager);
 
+            let history_manager = Arc::new(RwLock::new(
+                services::history::HistoryManager::new(&data_dir),
+            ));
+            app.manage(history_manager);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -36,6 +41,12 @@ pub fn run() {
             commands::config::update_config,
             commands::cache::get_cache_stats,
             commands::cache::clear_cache,
+            commands::history::history_navigate_up,
+            commands::history::history_navigate_down,
+            commands::history::history_exit,
+            commands::history::history_is_in_history_mode,
+            commands::history::history_get_pointer,
+            commands::history::history_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
