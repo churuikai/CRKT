@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/schema.json",
+  "identifier": "default",
+  "description": "Default capability for CRKT",
+  "windows": ["main", "settings"],
+  "permissions": [
+    "core:default",
+    "global-shortcut:default",
+    "clipboard-manager:default",
+    "autostart:default"
+  ]
+}

@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for CRKT","local":true,"windows":["main","settings"],"permissions":["core:default","global-shortcut:default","clipboard-manager:default","autostart:default"]}}
