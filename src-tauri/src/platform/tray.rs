@@ -41,10 +41,16 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         let _ = autostart_item.set_checked(config.start_on_boot);
     }
 
-    let _tray = TrayIconBuilder::with_id("main-tray")
+    let mut tray_builder = TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("CRKT Translator")
+        .tooltip("CRKT Translator");
+
+    if let Some(icon) = app.default_window_icon().cloned() {
+        tray_builder = tray_builder.icon(icon).icon_as_template(true);
+    }
+
+    let _tray = tray_builder
         .on_menu_event(move |app, event| {
             match event.id().as_ref() {
                 "settings" => {

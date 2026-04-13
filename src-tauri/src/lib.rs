@@ -33,7 +33,17 @@ pub fn run() {
                 })
                 .build(),
         )
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .setup(|app| {
+            // Hide from Dock, only show tray icon
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let data_dir = app
                 .path()
                 .app_data_dir()
