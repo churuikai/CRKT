@@ -1,3 +1,31 @@
+/// Check and prompt for Accessibility permission on macOS.
+/// Shows the system dialog and opens System Settings if not granted.
+/// Returns true if already granted.
+#[cfg(target_os = "macos")]
+pub fn ensure_accessibility_permission() -> bool {
+    use core_foundation::base::TCFType;
+    use core_foundation::boolean::CFBoolean;
+    use core_foundation::dictionary::CFDictionary;
+    use core_foundation::string::CFString;
+    use std::ffi::c_void;
+
+    extern "C" {
+        fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
+    }
+
+    let key = CFString::new("AXTrustedCheckOptionPrompt");
+    let value = CFBoolean::true_value();
+
+    let options = CFDictionary::from_CFType_pairs(&[(key, value)]);
+
+    unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn ensure_accessibility_permission() -> bool {
+    true
+}
+
 /// Get selected text from the focused application.
 /// macOS: uses Accessibility API (no clipboard involvement).
 /// Windows: simulates Ctrl+C via SendInput and reads clipboard.

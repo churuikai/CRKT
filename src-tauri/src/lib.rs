@@ -35,8 +35,11 @@ pub fn run() {
         )
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+                // Only hide the main window; let other windows (settings) close normally
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .setup(|app| {
@@ -87,6 +90,9 @@ pub fn run() {
             app.manage(language_detector);
             app.manage(active_translation);
 
+            // Check accessibility permission (macOS: prompts user if not granted)
+            platform::text_capture::ensure_accessibility_permission();
+
             // Setup system tray
             platform::tray::setup_tray(app.handle())
                 .expect("failed to setup system tray");
@@ -122,11 +128,19 @@ fn register_shortcuts(
     let translate_shortcut = config.config().translate_shortcut.clone();
     let append_shortcut = config.config().append_shortcut.clone();
 
-    if let Ok(shortcut) = translate_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-        app.global_shortcut().register(shortcut)?;
+    match translate_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+        Ok(shortcut) => {
+            app.global_shortcut().register(shortcut)?;
+            eprintln!("[CRKT] Registered translate shortcut: {}", translate_shortcut);
+        }
+        Err(e) => eprintln!("[CRKT] Failed to parse translate shortcut '{}': {:?}", translate_shortcut, e),
     }
-    if let Ok(shortcut) = append_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-        app.global_shortcut().register(shortcut)?;
+    match append_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+        Ok(shortcut) => {
+            app.global_shortcut().register(shortcut)?;
+            eprintln!("[CRKT] Registered append shortcut: {}", append_shortcut);
+        }
+        Err(e) => eprintln!("[CRKT] Failed to parse append shortcut '{}': {:?}", append_shortcut, e),
     }
 
     Ok(())
