@@ -39,6 +39,26 @@ pub fn run() {
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
 
+            // Check for legacy CRKT config and migrate if found
+            if !data_dir.join("config.json").exists() {
+                let legacy_candidates = [
+                    data_dir.parent().map(|p| p.join("CRKT")),
+                    std::env::current_dir().ok().map(|d| d.join("CRKT")),
+                ];
+                for candidate in legacy_candidates.into_iter().flatten() {
+                    if candidate.join("data").join("config.json").exists() {
+                        if let Some(migrated) =
+                            services::migration::migrate_legacy_config(&candidate)
+                        {
+                            let mut cm = ConfigManager::new(&data_dir);
+                            let _ = cm.update(migrated);
+                            log::info!("Migrated settings from legacy CRKT");
+                        }
+                        break;
+                    }
+                }
+            }
+
             // Initialize services
             let config_manager = Arc::new(RwLock::new(ConfigManager::new(&data_dir)));
             let cache_manager = Arc::new(RwLock::new(CacheManager::new(&data_dir)));
