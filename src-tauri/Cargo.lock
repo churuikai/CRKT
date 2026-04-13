@@ -471,6 +471,7 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-global-shortcut",
+ "tempfile",
  "tokio",
  "uuid",
  "windows 0.58.0",
