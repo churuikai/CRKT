@@ -2,7 +2,7 @@ mod commands;
 mod services;
 mod types;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use services::config::ConfigManager;
 use tauri::Manager;
@@ -34,6 +34,13 @@ pub fn run() {
             ));
             app.manage(history_manager);
 
+            let language_detector = Arc::new(services::language::LanguageDetector);
+            app.manage(language_detector);
+
+            let active_translation: Arc<Mutex<Option<tokio::task::AbortHandle>>> =
+                Arc::new(Mutex::new(None));
+            app.manage(active_translation);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -47,6 +54,8 @@ pub fn run() {
             commands::history::history_is_in_history_mode,
             commands::history::history_get_pointer,
             commands::history::history_clear,
+            commands::translation::translate,
+            commands::translation::cancel_translation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
