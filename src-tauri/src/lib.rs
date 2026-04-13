@@ -24,11 +24,18 @@ pub fn run() {
             let config_manager = Arc::new(RwLock::new(ConfigManager::new(&data_dir)));
             app.manage(config_manager);
 
+            let cache_manager = Arc::new(RwLock::new(
+                services::cache::CacheManager::new(&data_dir),
+            ));
+            app.manage(cache_manager);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::config::get_config,
             commands::config::update_config,
+            commands::cache::get_cache_stats,
+            commands::cache::clear_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
