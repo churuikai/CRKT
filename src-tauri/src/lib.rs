@@ -42,6 +42,9 @@ pub fn run() {
                 Arc::new(Mutex::new(None));
             app.manage(active_translation);
 
+            platform::tray::setup_tray(app.handle())
+                .expect("failed to setup system tray");
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
