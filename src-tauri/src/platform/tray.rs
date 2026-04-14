@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use tauri::{
     menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager,
+    AppHandle, Manager,
 };
 
 use tauri_plugin_autostart::ManagerExt;
@@ -12,9 +12,6 @@ use crate::services::config::ConfigManager;
 
 pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let settings_item = MenuItemBuilder::with_id("settings", "设置").build(app)?;
-
-    let comparison_item =
-        CheckMenuItemBuilder::with_id("comparison", "原文对照").build(app)?;
 
     let autostart_item =
         CheckMenuItemBuilder::with_id("autostart", "开机自启动").build(app)?;
@@ -26,7 +23,6 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let menu = MenuBuilder::new(app)
         .item(&settings_item)
         .separator()
-        .item(&comparison_item)
         .item(&autostart_item)
         .separator()
         .item(&about_item)
@@ -37,7 +33,6 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // Set initial check states from config
     if let Ok(config_lock) = app.state::<Arc<RwLock<ConfigManager>>>().read() {
         let config = config_lock.config();
-        let _ = comparison_item.set_checked(config.show_source_comparison);
         let _ = autostart_item.set_checked(config.start_on_boot);
     }
 
@@ -55,17 +50,6 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             match event.id().as_ref() {
                 "settings" => {
                     open_settings_window(app);
-                }
-                "comparison" => {
-                    if let Ok(checked) = comparison_item.is_checked() {
-                        let config_state = app.state::<Arc<RwLock<ConfigManager>>>();
-                        if let Ok(mut manager) = config_state.write() {
-                            let _ = manager.update_field(|c| {
-                                c.show_source_comparison = checked;
-                            });
-                        }
-                        let _ = app.emit("config:comparison_changed", checked);
-                    }
                 }
                 "autostart" => {
                     if let Ok(checked) = autostart_item.is_checked() {
