@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col h-screen bg-gray-50 text-gray-900">
+  <div class="flex flex-col h-screen text-gray-800">
     <HistoryToolbar
       :in-history-mode="history.inHistoryMode.value"
       :history-index="history.historyIndex.value"

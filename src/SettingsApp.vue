@@ -8,8 +8,8 @@
         class="w-full text-left px-3 py-2 text-sm rounded"
         :class="
           activeTab === tab.id
-            ? 'bg-purple-100 text-purple-700'
-            : 'hover:bg-gray-100 text-gray-600'
+            ? 'bg-blue-500/10 text-blue-600'
+            : 'hover:bg-black/[0.04] text-gray-500'
         "
         @click="activeTab = tab.id"
       >

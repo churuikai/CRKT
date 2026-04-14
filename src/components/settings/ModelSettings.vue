@@ -8,7 +8,7 @@
         @keydown.enter="addModel"
       />
       <button
-        class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"
+        class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
         @click="addModel"
       >
         添加
@@ -19,7 +19,7 @@
         v-for="(model, i) in models"
         :key="i"
         class="flex items-center gap-2 px-2 py-1 rounded"
-        :class="model === selectedModel ? 'bg-purple-50' : 'hover:bg-gray-50'"
+        :class="model === selectedModel ? 'bg-blue-50' : 'hover:bg-gray-50'"
       >
         <input
           type="radio"

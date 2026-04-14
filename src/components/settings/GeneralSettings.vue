@@ -14,7 +14,7 @@
       <p class="mt-1">
         <a
           href="https://github.com/churuikai/CRKT"
-          class="text-purple-600 hover:underline"
+          class="text-blue-500 hover:underline"
           >GitHub</a
         >
       </p>

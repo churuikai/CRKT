@@ -10,7 +10,7 @@
         </option>
       </select>
       <button
-        class="px-3 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700"
+        class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
         @click="addSkill"
       >
         添加
