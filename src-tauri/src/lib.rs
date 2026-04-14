@@ -157,8 +157,16 @@ async fn handle_shortcut(app: &tauri::AppHandle, shortcut_str: &str) {
     };
 
     // Determine which shortcut was triggered
-    let is_translate = shortcut_str == config.translate_shortcut;
-    let is_append = shortcut_str == config.append_shortcut;
+    // Compare parsed Shortcut objects, not raw strings —
+    // config has "CmdOrCtrl+Shift+T" but shortcut.to_string() yields "Command+Shift+T" on macOS
+    let pressed: Option<tauri_plugin_global_shortcut::Shortcut> = shortcut_str.parse().ok();
+    let translate_parsed: Option<tauri_plugin_global_shortcut::Shortcut> =
+        config.translate_shortcut.parse().ok();
+    let append_parsed: Option<tauri_plugin_global_shortcut::Shortcut> =
+        config.append_shortcut.parse().ok();
+
+    let is_translate = pressed.is_some() && pressed == translate_parsed;
+    let is_append = pressed.is_some() && pressed == append_parsed;
 
     if !is_translate && !is_append {
         return;
