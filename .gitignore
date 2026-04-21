@@ -1,18 +1,11 @@
-*.ini
-*.json
+# Tauri / Vite
+node_modules/
 dist/
-build/
-*.zip
-info.txt
-prompt.txt
-test.py
-__pycache__/
-*.spec
-*.pkl
-*.pyd
-*.iss
-vditor/
-index/
-data/
-pyqt5env/
-Output/
+src-tauri/target/
+
+# Legacy (old_version)
+old_version/__pycache__/
+old_version/*.pkl
+
+# OS
+.DS_Store
