@@ -65,6 +65,8 @@ pub async fn translate(
         return Err("API Key is not configured".to_string());
     }
 
+    eprintln!("[CRKT] translate: api={}, model={}, url={}", api_profile.name, config.selected_model, api_profile.base_url);
+
     // Clone everything needed for the spawned task
     let cache = Arc::clone(&cache_state);
     let history = Arc::clone(&history_state);
@@ -78,6 +80,7 @@ pub async fn translate(
     let skill_name = config.selected_skill.clone();
 
     let task = tokio::spawn(async move {
+        eprintln!("[CRKT] spawned task: calling translate_stream...");
         match translator::translate_stream(
             &text_clone,
             &skill_prompt,
@@ -90,7 +93,8 @@ pub async fn translate(
         )
         .await
         {
-            Ok(result) => {
+            Ok(ref result) => {
+                eprintln!("[CRKT] translate_stream OK, len={}", result.len());
                 // Save to cache
                 if let Ok(mut c) = cache.write() {
                     c.set(text_clone.clone(), result.clone());
@@ -100,7 +104,7 @@ pub async fn translate(
                     h.add_record(TranslationRecord {
                         id: uuid::Uuid::new_v4().to_string(),
                         source_text: text_clone,
-                        translated_text: result,
+                        translated_text: result.clone(),
                         source_language: source_code,
                         target_language: target_code,
                         timestamp: chrono::Utc::now().to_rfc3339(),
@@ -110,8 +114,9 @@ pub async fn translate(
                     let _ = h.save();
                 }
             }
-            Err(e) => {
-                let _ = app.emit("translation:error", &e);
+            Err(ref e) => {
+                eprintln!("[CRKT] translate_stream ERROR: {}", e);
+                let _ = app.emit("translation:error", e.as_str());
             }
         }
     });

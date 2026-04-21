@@ -97,15 +97,6 @@ fn legacy_hotkey_to_shortcut(legacy_key: &str, action_key: &str) -> String {
     }
 }
 
-/// Migrate legacy history.json (same format, just copy records).
-pub fn migrate_legacy_history(legacy_data_dir: &Path) -> Vec<crate::types::TranslationRecord> {
-    let path = legacy_data_dir.join("data").join("history.json");
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|c| serde_json::from_str(&c).ok())
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

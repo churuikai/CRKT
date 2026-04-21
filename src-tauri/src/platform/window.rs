@@ -21,21 +21,6 @@ pub fn show_near_cursor(app: &AppHandle) {
     let _ = window.set_focus();
 }
 
-/// Toggle main window visibility. Used by tray icon click.
-pub fn toggle_main_window(app: &AppHandle) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-
-    if window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false) {
-        let _ = window.hide();
-    } else {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
-}
-
 fn position_window_near(window: &WebviewWindow, cursor: PhysicalPosition<i32>) {
     let Ok(window_size) = window.outer_size() else {
         return;
@@ -89,16 +74,29 @@ fn position_window_near(window: &WebviewWindow, cursor: PhysicalPosition<i32>) {
 
 #[cfg(target_os = "macos")]
 fn get_cursor_position() -> Result<PhysicalPosition<i32>, String> {
-    extern "C" {
-        fn CGEventCreate(source: *const std::ffi::c_void) -> *mut std::ffi::c_void;
-        fn CGEventGetLocation(event: *const std::ffi::c_void) -> CGPoint;
-        fn CFRelease(cf: *const std::ffi::c_void);
-    }
-
     #[repr(C)]
     struct CGPoint {
         x: f64,
         y: f64,
+    }
+    #[repr(C)]
+    struct CGSize {
+        width: f64,
+        height: f64,
+    }
+    #[repr(C)]
+    struct CGRect {
+        origin: CGPoint,
+        size: CGSize,
+    }
+
+    extern "C" {
+        fn CGEventCreate(source: *const std::ffi::c_void) -> *mut std::ffi::c_void;
+        fn CGEventGetLocation(event: *const std::ffi::c_void) -> CGPoint;
+        fn CFRelease(cf: *const std::ffi::c_void);
+        fn CGMainDisplayID() -> u32;
+        fn CGDisplayPixelsWide(display: u32) -> usize;
+        fn CGDisplayBounds(display: u32) -> CGRect;
     }
 
     unsafe {
@@ -108,7 +106,22 @@ fn get_cursor_position() -> Result<PhysicalPosition<i32>, String> {
         }
         let point = CGEventGetLocation(event);
         CFRelease(event);
-        Ok(PhysicalPosition::new(point.x as i32, point.y as i32))
+
+        // CGEventGetLocation returns points (logical coordinates).
+        // Convert to physical pixels using the main display's scale factor.
+        let main = CGMainDisplayID();
+        let px_wide = CGDisplayPixelsWide(main) as f64;
+        let bounds = CGDisplayBounds(main);
+        let scale = if bounds.size.width > 0.0 {
+            px_wide / bounds.size.width
+        } else {
+            1.0
+        };
+
+        Ok(PhysicalPosition::new(
+            (point.x * scale) as i32,
+            (point.y * scale) as i32,
+        ))
     }
 }
 

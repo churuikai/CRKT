@@ -39,9 +39,15 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let mut tray_builder = TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
         .show_menu_on_left_click(false)
-        .tooltip("CRKT Translator");
+        .tooltip("Translator");
 
-    if let Some(icon) = app.default_window_icon().cloned() {
+    // Embedded monochrome tray icon (22x22 RGBA with 8-byte header: u32 width + u32 height)
+    {
+        let raw = include_bytes!("../../icons/tray-icon.rgba");
+        let w = u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]);
+        let h = u32::from_le_bytes([raw[4], raw[5], raw[6], raw[7]]);
+        let rgba = raw[8..].to_vec();
+        let icon = tauri::image::Image::new_owned(rgba, w, h);
         tray_builder = tray_builder.icon(icon).icon_as_template(true);
     }
 
@@ -104,7 +110,7 @@ fn open_settings_window(app: &AppHandle) {
         "settings",
         tauri::WebviewUrl::App("settings.html".into()),
     )
-    .title("CRKT - 设置")
+    .title("设置")
     .inner_size(800.0, 600.0)
     .center()
     .build();

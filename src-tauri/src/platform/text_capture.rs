@@ -27,12 +27,12 @@ pub fn ensure_accessibility_permission() -> bool {
 }
 
 /// Get selected text from the focused application.
-/// macOS: uses Accessibility API (no clipboard involvement).
+/// macOS: tries Accessibility API first, falls back to Cmd+C clipboard.
 /// Windows: simulates Ctrl+C via SendInput and reads clipboard.
-pub fn get_selected_text(#[allow(unused)] app_handle: &tauri::AppHandle) -> Result<String, String> {
+pub fn get_selected_text(app_handle: &tauri::AppHandle) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
-        get_selected_text_macos()
+        get_selected_text_macos(app_handle)
     }
     #[cfg(target_os = "windows")]
     {
@@ -40,12 +40,30 @@ pub fn get_selected_text(#[allow(unused)] app_handle: &tauri::AppHandle) -> Resu
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
+        let _ = app_handle;
         Err("Text capture not supported on this platform".to_string())
     }
 }
 
 #[cfg(target_os = "macos")]
-fn get_selected_text_macos() -> Result<String, String> {
+fn get_selected_text_macos(app_handle: &tauri::AppHandle) -> Result<String, String> {
+    // Strategy: try Accessibility API first (fast, non-invasive),
+    // fall back to simulating Cmd+C if AX fails (wider app compatibility).
+    if let Ok(text) = get_selected_text_ax() {
+        if !text.trim().is_empty() {
+            eprintln!("[CRKT] text capture: AX API succeeded, len={}", text.len());
+            return Ok(text);
+        }
+    }
+
+    eprintln!("[CRKT] text capture: AX API failed, falling back to Cmd+C");
+    get_selected_text_clipboard_mac(app_handle)
+}
+
+/// Try to get selected text via macOS Accessibility API (AXSelectedText).
+/// Works with native Cocoa apps and some well-behaved apps.
+#[cfg(target_os = "macos")]
+fn get_selected_text_ax() -> Result<String, String> {
     use core_foundation::base::{CFRelease, CFTypeRef, TCFType};
     use core_foundation::string::{CFString, CFStringRef};
     use std::ffi::c_void;
@@ -66,7 +84,6 @@ fn get_selected_text_macos() -> Result<String, String> {
     unsafe {
         let system_wide = AXUIElementCreateSystemWide();
 
-        // Get focused application
         let attr = CFString::new("AXFocusedApplication");
         let mut focused_app: CFTypeRef = std::ptr::null_mut();
         let err = AXUIElementCopyAttributeValue(
@@ -77,13 +94,9 @@ fn get_selected_text_macos() -> Result<String, String> {
         CFRelease(system_wide as CFTypeRef);
 
         if err != K_AX_ERROR_SUCCESS || focused_app.is_null() {
-            return Err(
-                "Cannot get focused application. Grant Accessibility permission in System Settings > Privacy & Security > Accessibility."
-                    .to_string(),
-            );
+            return Err("Cannot get focused application".to_string());
         }
 
-        // Get focused UI element
         let attr = CFString::new("AXFocusedUIElement");
         let mut focused_element: CFTypeRef = std::ptr::null_mut();
         let err = AXUIElementCopyAttributeValue(
@@ -97,7 +110,6 @@ fn get_selected_text_macos() -> Result<String, String> {
             return Err("Cannot get focused UI element".to_string());
         }
 
-        // Get selected text
         let attr = CFString::new("AXSelectedText");
         let mut selected_text: CFTypeRef = std::ptr::null_mut();
         let err = AXUIElementCopyAttributeValue(
@@ -114,6 +126,69 @@ fn get_selected_text_macos() -> Result<String, String> {
         let cf_string = CFString::wrap_under_create_rule(selected_text as CFStringRef);
         Ok(cf_string.to_string())
     }
+}
+
+/// Fallback: simulate Cmd+C, read clipboard via Tauri plugin, restore original.
+/// Works with virtually all apps that support standard copy.
+#[cfg(target_os = "macos")]
+fn get_selected_text_clipboard_mac(app_handle: &tauri::AppHandle) -> Result<String, String> {
+    use std::ffi::c_void;
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+
+    extern "C" {
+        fn CGEventCreateKeyboardEvent(
+            source: *const c_void,
+            keycode: u16,
+            key_down: bool,
+        ) -> *mut c_void;
+        fn CGEventSetFlags(event: *mut c_void, flags: u64);
+        fn CGEventPost(tap: u32, event: *mut c_void);
+        fn CFRelease(cf: *const c_void);
+    }
+
+    const K_VK_C: u16 = 8; // macOS virtual keycode for 'C'
+    const K_CG_EVENT_FLAG_MASK_COMMAND: u64 = 1 << 20;
+    const K_CG_HID_EVENT_TAP: u32 = 0; // kCGHIDEventTap
+
+    let clipboard = app_handle.clipboard();
+
+    // Save original clipboard content
+    let saved = clipboard.read_text().ok();
+
+    // Clear clipboard so we can detect if copy worked
+    let _ = clipboard.write_text("");
+
+    // Simulate Cmd+C
+    unsafe {
+        let cmd_down = CGEventCreateKeyboardEvent(std::ptr::null(), K_VK_C, true);
+        CGEventSetFlags(cmd_down, K_CG_EVENT_FLAG_MASK_COMMAND);
+        CGEventPost(K_CG_HID_EVENT_TAP, cmd_down);
+        CFRelease(cmd_down as *const c_void);
+
+        let cmd_up = CGEventCreateKeyboardEvent(std::ptr::null(), K_VK_C, false);
+        CGEventSetFlags(cmd_up, K_CG_EVENT_FLAG_MASK_COMMAND);
+        CGEventPost(K_CG_HID_EVENT_TAP, cmd_up);
+        CFRelease(cmd_up as *const c_void);
+    }
+
+    // Wait for clipboard update
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    // Read copied text
+    let text = clipboard
+        .read_text()
+        .map_err(|e| format!("Clipboard read error: {}", e))?;
+
+    // Restore original clipboard
+    if let Some(saved) = saved {
+        let _ = clipboard.write_text(saved);
+    }
+
+    if text.is_empty() {
+        return Err("No text copied".to_string());
+    }
+
+    Ok(text)
 }
 
 #[cfg(target_os = "windows")]

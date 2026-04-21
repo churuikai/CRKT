@@ -1,39 +1,46 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex gap-2">
+  <div class="space-y-5">
+    <h2 class="text-[17px] font-semibold text-[#1d1d1f] tracking-tight">模型</h2>
+
+    <div class="flex items-center gap-2">
       <input
         v-model="newModel"
-        class="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+        class="mac-input flex-1"
         placeholder="输入模型名称"
         @keydown.enter="addModel"
       />
       <button
-        class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        class="px-3 py-[7px] text-[13px] text-blue-500 font-medium rounded-lg hover:bg-blue-500/[0.07] active:bg-blue-500/[0.12] transition-colors"
         @click="addModel"
       >
-        添加
+        + 添加
       </button>
     </div>
-    <div class="space-y-1">
-      <div
+
+    <div class="mac-card overflow-hidden divide-y divide-black/[0.04]">
+      <label
         v-for="(model, i) in models"
         :key="i"
-        class="flex items-center gap-2 px-2 py-1 rounded"
-        :class="model === selectedModel ? 'bg-blue-50' : 'hover:bg-gray-50'"
+        class="flex items-center gap-3 px-4 py-[10px] cursor-pointer transition-colors"
+        :class="model === selected ? 'bg-blue-500/[0.04]' : 'hover:bg-black/[0.02]'"
       >
         <input
           type="radio"
           :value="model"
           v-model="selected"
+          class="accent-blue-500"
           @change="emitUpdate"
         />
-        <span class="flex-1 text-sm">{{ model }}</span>
+        <span class="flex-1 text-[13px] text-[#1d1d1f]/80">{{ model }}</span>
         <button
-          class="text-red-400 hover:text-red-600 text-xs"
-          @click="removeModel(i)"
+          class="text-[11px] text-black/20 hover:text-red-500 transition-colors"
+          @click.prevent="removeModel(i)"
         >
-          删除
+          移除
         </button>
+      </label>
+      <div v-if="models.length === 0" class="px-4 py-8 text-center text-[13px] text-black/25">
+        暂无模型
       </div>
     </div>
   </div>

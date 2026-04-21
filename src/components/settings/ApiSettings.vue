@@ -1,53 +1,45 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex gap-2">
+  <div class="space-y-5">
+    <h2 class="text-[17px] font-semibold text-[#1d1d1f] tracking-tight">API 配置</h2>
+
+    <!-- Profile selector -->
+    <div class="flex items-center gap-2">
       <select
         v-model="selectedIndex"
-        class="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
+        class="mac-input flex-1"
       >
         <option v-for="(p, i) in profiles" :key="i" :value="i">
           {{ p.name }}
         </option>
       </select>
       <button
-        class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        class="px-3 py-[7px] text-[13px] text-blue-500 font-medium rounded-lg hover:bg-blue-500/[0.07] active:bg-blue-500/[0.12] transition-colors"
         @click="addProfile"
       >
-        添加
+        + 添加
       </button>
       <button
-        class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+        class="px-3 py-[7px] text-[13px] text-red-500/60 font-medium rounded-lg hover:bg-red-500/[0.07] active:bg-red-500/[0.12] transition-colors disabled:opacity-25 disabled:pointer-events-none"
         :disabled="profiles.length <= 1"
         @click="removeProfile"
       >
         删除
       </button>
     </div>
-    <div v-if="current" class="space-y-3">
+
+    <!-- Profile form -->
+    <div v-if="current" class="mac-card p-5 space-y-4">
       <div>
-        <label class="block text-sm text-gray-600 mb-1">名称</label>
-        <input
-          v-model="current.name"
-          class="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-          @change="emitUpdate"
-        />
+        <label class="mac-label">名称</label>
+        <input v-model="current.name" class="mac-input" @change="emitUpdate" />
       </div>
       <div>
-        <label class="block text-sm text-gray-600 mb-1">API Key</label>
-        <input
-          v-model="current.api_key"
-          type="password"
-          class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"
-          @change="emitUpdate"
-        />
+        <label class="mac-label">API Key</label>
+        <input v-model="current.api_key" type="password" class="mac-input font-mono" @change="emitUpdate" />
       </div>
       <div>
-        <label class="block text-sm text-gray-600 mb-1">Base URL</label>
-        <input
-          v-model="current.base_url"
-          class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"
-          @change="emitUpdate"
-        />
+        <label class="mac-label">Base URL</label>
+        <input v-model="current.base_url" class="mac-input font-mono" @change="emitUpdate" />
       </div>
     </div>
   </div>

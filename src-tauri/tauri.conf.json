@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "CRKT Translator",
+  "productName": "Translator",
   "version": "0.1.0",
   "identifier": "com.crkt.translator",
   "build": {
@@ -13,9 +13,11 @@
     "windows": [
       {
         "label": "main",
-        "title": "CRKT Translator",
-        "width": 1000,
-        "height": 700,
+        "title": "Translator",
+        "width": 420,
+        "height": 600,
+        "minWidth": 320,
+        "minHeight": 200,
         "visible": false,
         "alwaysOnTop": true,
         "decorations": true

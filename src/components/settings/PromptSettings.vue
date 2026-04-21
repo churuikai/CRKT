@@ -1,48 +1,43 @@
 <template>
-  <div class="space-y-4">
-    <div class="flex gap-2">
-      <select
-        v-model="selectedIndex"
-        class="flex-1 border border-gray-300 rounded px-2 py-1 text-sm"
-      >
+  <div class="space-y-5">
+    <h2 class="text-[17px] font-semibold text-[#1d1d1f] tracking-tight">提示词</h2>
+
+    <div class="flex items-center gap-2">
+      <select v-model="selectedIndex" class="mac-input flex-1">
         <option v-for="(s, i) in skills" :key="i" :value="i">
           {{ s.name }}
         </option>
       </select>
       <button
-        class="px-3 py-1 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
+        class="px-3 py-[7px] text-[13px] text-blue-500 font-medium rounded-lg hover:bg-blue-500/[0.07] active:bg-blue-500/[0.12] transition-colors"
         @click="addSkill"
       >
-        添加
+        + 添加
       </button>
       <button
-        class="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+        class="px-3 py-[7px] text-[13px] text-red-500/60 font-medium rounded-lg hover:bg-red-500/[0.07] active:bg-red-500/[0.12] transition-colors disabled:opacity-25 disabled:pointer-events-none"
         :disabled="skills.length <= 1"
         @click="removeSkill"
       >
         删除
       </button>
     </div>
-    <div v-if="current" class="space-y-3">
+
+    <div v-if="current" class="mac-card p-5 space-y-4">
       <div>
-        <label class="block text-sm text-gray-600 mb-1">名称</label>
-        <input
-          v-model="current.name"
-          class="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-          @change="emitUpdate"
-        />
+        <label class="mac-label">名称</label>
+        <input v-model="current.name" class="mac-input" @change="emitUpdate" />
       </div>
       <div>
-        <label class="block text-sm text-gray-600 mb-1">
-          提示词模板
-          <span class="text-gray-400">
-            (可用变量: {source_language}, {target_language}, {selected_text})
-          </span>
-        </label>
+        <label class="mac-label">提示词模板</label>
+        <p class="text-[11px] text-black/25 mb-2">
+          可用变量: {source_language}, {target_language}, {selected_text}
+        </p>
         <textarea
           v-model="current.prompt"
           rows="10"
-          class="w-full border border-gray-300 rounded px-2 py-1 text-sm font-mono"
+          class="mac-input font-mono leading-relaxed resize-y"
+          style="height: auto"
           @change="emitUpdate"
         />
       </div>

@@ -1,15 +1,16 @@
 <template>
-  <div class="flex h-screen bg-white text-gray-900">
-    <!-- Tab sidebar -->
-    <nav class="w-40 bg-gray-50 border-r border-gray-200 p-2 space-y-1">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <nav class="w-48 bg-black/[0.025] border-r border-black/[0.05] pt-10 pb-4 px-3 space-y-0.5 select-none"
+         data-tauri-drag-region>
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        class="w-full text-left px-3 py-2 text-sm rounded"
+        class="w-full text-left px-3 py-[7px] text-[13px] rounded-lg transition-all duration-150"
         :class="
           activeTab === tab.id
-            ? 'bg-blue-500/10 text-blue-600'
-            : 'hover:bg-black/[0.04] text-gray-500'
+            ? 'bg-blue-500 text-white font-medium shadow-sm shadow-blue-500/20'
+            : 'text-[#1d1d1f]/55 hover:text-[#1d1d1f]/80 hover:bg-black/[0.04]'
         "
         @click="activeTab = tab.id"
       >
@@ -17,9 +18,9 @@
       </button>
     </nav>
 
-    <!-- Tab content -->
-    <div class="flex-1 p-6 overflow-auto">
-      <div v-if="!config" class="text-gray-400">加载中...</div>
+    <!-- Content -->
+    <main class="flex-1 overflow-auto px-8 py-8">
+      <div v-if="!config" class="text-gray-300 text-sm animate-pulse">加载中...</div>
       <template v-else>
         <ApiSettings
           v-if="activeTab === 'api'"
@@ -52,7 +53,7 @@
           @update="onGeneralUpdate"
         />
       </template>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -66,10 +67,10 @@ import TranslationSettings from "./components/settings/TranslationSettings.vue";
 import GeneralSettings from "./components/settings/GeneralSettings.vue";
 
 const tabs = [
-  { id: "api", label: "API 设置" },
-  { id: "models", label: "模型管理" },
-  { id: "prompts", label: "技能/提示词" },
-  { id: "translation", label: "翻译设置" },
+  { id: "api", label: "API" },
+  { id: "models", label: "模型" },
+  { id: "prompts", label: "提示词" },
+  { id: "translation", label: "翻译" },
   { id: "general", label: "通用" },
 ];
 

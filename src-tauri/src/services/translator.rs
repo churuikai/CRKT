@@ -53,7 +53,11 @@ pub async fn translate_stream(
         base_url.trim_end_matches('/')
     );
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
     let response = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", api_key))

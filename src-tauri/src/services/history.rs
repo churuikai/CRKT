@@ -85,10 +85,6 @@ impl HistoryManager {
         self.pointer
     }
 
-    pub fn records(&self) -> &[TranslationRecord] {
-        &self.records
-    }
-
     pub fn clear(&mut self) {
         self.records.clear();
         self.pointer = -1;
@@ -119,7 +115,7 @@ mod tests {
         let mut history = HistoryManager::new(dir.path());
         history.add_record(make_record("hello"));
         history.add_record(make_record("world"));
-        assert_eq!(history.records().len(), 2);
+        assert_eq!(history.records.len(), 2);
     }
 
     #[test]
@@ -190,8 +186,8 @@ mod tests {
         for i in 0..5 {
             history.add_record(make_record(&format!("record_{}", i)));
         }
-        assert_eq!(history.records().len(), 3);
-        assert_eq!(history.records()[0].source_text, "record_2");
+        assert_eq!(history.records.len(), 3);
+        assert_eq!(history.records[0].source_text, "record_2");
     }
 
     #[test]
@@ -202,7 +198,7 @@ mod tests {
         history.save().unwrap();
 
         let reloaded = HistoryManager::new(dir.path());
-        assert_eq!(reloaded.records().len(), 1);
-        assert_eq!(reloaded.records()[0].source_text, "persistent");
+        assert_eq!(reloaded.records.len(), 1);
+        assert_eq!(reloaded.records[0].source_text, "persistent");
     }
 }

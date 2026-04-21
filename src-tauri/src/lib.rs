@@ -128,19 +128,47 @@ fn register_shortcuts(
     let translate_shortcut = config.config().translate_shortcut.clone();
     let append_shortcut = config.config().append_shortcut.clone();
 
-    match translate_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-        Ok(shortcut) => {
-            app.global_shortcut().register(shortcut)?;
-            eprintln!("[CRKT] Registered translate shortcut: {}", translate_shortcut);
+    // Register double-tap shortcuts
+    for (shortcut_str, action_name) in [
+        (translate_shortcut.as_str(), "translate"),
+        (append_shortcut.as_str(), "append"),
+    ] {
+        if let Some(key) = platform::double_tap::parse_double_tap(shortcut_str) {
+            let rx = platform::double_tap::start_listener(key);
+            let app_clone = app.clone();
+            let action = action_name.to_string();
+            eprintln!("[CRKT] Started double-tap listener for {}", action);
+            std::thread::spawn(move || {
+                while let Ok(()) = rx.recv() {
+                    eprintln!("[CRKT] double_tap: dispatching action={}", action);
+                    let app = app_clone.clone();
+                    let action = action.clone();
+                    tauri::async_runtime::spawn(async move {
+                        handle_action(&app, &action).await;
+                    });
+                }
+            });
         }
-        Err(e) => eprintln!("[CRKT] Failed to parse translate shortcut '{}': {:?}", translate_shortcut, e),
     }
-    match append_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
-        Ok(shortcut) => {
-            app.global_shortcut().register(shortcut)?;
-            eprintln!("[CRKT] Registered append shortcut: {}", append_shortcut);
+
+    // Register regular (non-double-tap) shortcuts
+    if !translate_shortcut.starts_with("DoubleTap:") {
+        match translate_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            Ok(shortcut) => {
+                app.global_shortcut().register(shortcut)?;
+                eprintln!("[CRKT] Registered translate shortcut: {}", translate_shortcut);
+            }
+            Err(e) => eprintln!("[CRKT] Failed to parse translate shortcut '{}': {:?}", translate_shortcut, e),
         }
-        Err(e) => eprintln!("[CRKT] Failed to parse append shortcut '{}': {:?}", append_shortcut, e),
+    }
+    if !append_shortcut.starts_with("DoubleTap:") {
+        match append_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            Ok(shortcut) => {
+                app.global_shortcut().register(shortcut)?;
+                eprintln!("[CRKT] Registered append shortcut: {}", append_shortcut);
+            }
+            Err(e) => eprintln!("[CRKT] Failed to parse append shortcut '{}': {:?}", append_shortcut, e),
+        }
     }
 
     Ok(())
@@ -168,9 +196,17 @@ async fn handle_shortcut(app: &tauri::AppHandle, shortcut_str: &str) {
     let is_translate = pressed.is_some() && pressed == translate_parsed;
     let is_append = pressed.is_some() && pressed == append_parsed;
 
-    if !is_translate && !is_append {
-        return;
+    if is_translate {
+        handle_action(app, "translate").await;
+    } else if is_append {
+        handle_action(app, "append").await;
     }
+}
+
+/// Core action handler shared by both global shortcuts and double-tap listener.
+/// `action` is either "translate" or "append".
+async fn handle_action(app: &tauri::AppHandle, action: &str) {
+    eprintln!("[CRKT] handle_action: start, action={}", action);
 
     // Check if in history mode — if so, exit history mode instead
     let history_arc: Arc<RwLock<HistoryManager>> = {
@@ -187,22 +223,28 @@ async fn handle_shortcut(app: &tauri::AppHandle, shortcut_str: &str) {
     }
 
     // Capture selected text from focused application
+    eprintln!("[CRKT] handle_action: capturing text...");
     let text = tokio::task::spawn_blocking({
         let app = app.clone();
         move || platform::text_capture::get_selected_text(&app)
     })
     .await;
+    eprintln!("[CRKT] handle_action: text capture result={:?}", text.as_ref().map(|r| r.as_ref().map(|t| t.len())));
 
     let text = match text {
         Ok(Ok(t)) if !t.trim().is_empty() => t,
-        _ => return, // No text captured
+        _ => {
+            eprintln!("[CRKT] handle_action: no text captured, returning");
+            return;
+        }
     };
 
-    if is_append {
+    if action == "append" {
         let _ = app.emit("source:append", &text);
         platform::window::show_near_cursor(app);
     } else {
         // Translate: show window and invoke translation
+        eprintln!("[CRKT] Hotkey translate, text len={}", text.len());
         platform::window::show_near_cursor(app);
         let _ = app.emit("translation:started", ());
 
@@ -213,7 +255,7 @@ async fn handle_shortcut(app: &tauri::AppHandle, shortcut_str: &str) {
         let detector_state = app.state::<Arc<LanguageDetector>>();
         let abort_state = app.state::<Arc<Mutex<Option<tokio::task::AbortHandle>>>>();
 
-        let _ = commands::translation::translate(
+        let result = commands::translation::translate(
             text,
             app.clone(),
             config_state,
@@ -223,5 +265,9 @@ async fn handle_shortcut(app: &tauri::AppHandle, shortcut_str: &str) {
             abort_state,
         )
         .await;
+        eprintln!("[CRKT] translate result: {:?}", result);
+        if let Err(e) = result {
+            let _ = app.emit("translation:error", e);
+        }
     }
 }

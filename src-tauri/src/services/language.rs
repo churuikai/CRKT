@@ -35,11 +35,8 @@ impl LanguageDetector {
 
     pub fn get_target_language(&self, source: &LanguageInfo, configured_target: &str) -> LanguageInfo {
         if source.name == configured_target {
-            if configured_target == "中文" {
-                return LanguageInfo { code: "en".into(), name: "英语".into() };
-            } else {
-                return LanguageInfo { code: "zh".into(), name: "中文".into() };
-            }
+            // Source and target are the same language — default to English
+            return LanguageInfo { code: "en".into(), name: "英语".into() };
         }
         Self::language_from_name(configured_target)
     }
@@ -115,11 +112,18 @@ mod tests {
     }
 
     #[test]
-    fn test_auto_swap_english_source_english_target() {
+    fn test_same_language_defaults_to_english() {
         let detector = LanguageDetector;
+        // When source == target, always default to English
         let source = LanguageInfo { code: "en".into(), name: "英语".into() };
         let target = detector.get_target_language(&source, "英语");
-        assert_eq!(target.code, "zh");
+        assert_eq!(target.code, "en");
+        assert_eq!(target.name, "英语");
+
+        let source = LanguageInfo { code: "ru".into(), name: "俄语".into() };
+        let target = detector.get_target_language(&source, "俄语");
+        assert_eq!(target.code, "en");
+        assert_eq!(target.name, "英语");
     }
 
     #[test]

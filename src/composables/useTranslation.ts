@@ -54,7 +54,15 @@ export function useTranslation() {
   });
 
   async function translate(text: string) {
-    await invoke("translate", { text });
+    isTranslating.value = true;
+    error.value = "";
+    translationContent.value = "";
+    try {
+      await invoke("translate", { text });
+    } catch (e) {
+      error.value = String(e);
+      isTranslating.value = false;
+    }
   }
 
   async function cancel() {
