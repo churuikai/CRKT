@@ -21,6 +21,18 @@ pub fn start_listener(_key: ModifierKey) -> mpsc::Receiver<()> {
     rx
 }
 
+/// Test whether Input Monitoring permission is granted by trying to create a CGEventTap.
+/// Must be called before start_listener. Safe to call from the main thread.
+#[cfg(target_os = "macos")]
+pub fn check_input_monitoring() -> bool {
+    macos::check_input_monitoring()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn check_input_monitoring() -> bool {
+    true
+}
+
 /// Parse a "DoubleTap:Ctrl" / "DoubleTap:Shift" config string.
 /// Returns None if the string is not a double-tap shortcut.
 pub fn parse_double_tap(s: &str) -> Option<ModifierKey> {
@@ -83,6 +95,37 @@ mod macos {
         fn CFRunLoopRun();
 
         static kCFRunLoopCommonModes: *const c_void;
+    }
+
+    extern "C" fn noop_callback(
+        _proxy: CGEventTapProxy,
+        _etype: u32,
+        event: CGEventRef,
+        _info: *mut c_void,
+    ) -> CGEventRef {
+        event
+    }
+
+    pub fn check_input_monitoring() -> bool {
+        unsafe {
+            let tap = CGEventTapCreate(
+                K_CG_SESSION_EVENT_TAP,
+                K_CG_HEAD_INSERT_EVENT_TAP,
+                K_CG_EVENT_TAP_OPTION_LISTEN_ONLY,
+                1 << K_CG_EVENT_FLAGS_CHANGED,
+                noop_callback,
+                std::ptr::null_mut(),
+            );
+            if tap.is_null() {
+                return false;
+            }
+            // Clean up the test tap
+            extern "C" {
+                fn CFRelease(cf: *const c_void);
+            }
+            CFRelease(tap as *const c_void);
+            true
+        }
     }
 
     fn flag_mask(key: ModifierKey) -> u64 {
@@ -214,7 +257,10 @@ mod macos {
                 );
 
                 if tap.is_null() {
-                    eprintln!("[CRKT] double_tap: CGEventTapCreate failed for {}", name);
+                    eprintln!(
+                        "[CRKT] double_tap: CGEventTapCreate failed for {}",
+                        name
+                    );
                     drop(Box::from_raw(state));
                     return;
                 }

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:build": "tauri build && ./scripts/macos-sign.sh"
   },
   "dependencies": {
     "@tailwindcss/typography": "^0.5.19",

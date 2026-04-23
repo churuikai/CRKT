@@ -1,6 +1,3 @@
-/// Check and prompt for Accessibility permission on macOS.
-/// Shows the system dialog and opens System Settings if not granted.
-/// Returns true if already granted.
 #[cfg(target_os = "macos")]
 pub fn ensure_accessibility_permission() -> bool {
     use core_foundation::base::TCFType;
@@ -13,12 +10,22 @@ pub fn ensure_accessibility_permission() -> bool {
         fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
     }
 
+    // Check silently first — no dialog if already trusted
     let key = CFString::new("AXTrustedCheckOptionPrompt");
-    let value = CFBoolean::true_value();
+    let options = CFDictionary::from_CFType_pairs(&[(key, CFBoolean::false_value())]);
+    let trusted =
+        unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) };
 
-    let options = CFDictionary::from_CFType_pairs(&[(key, value)]);
+    if trusted {
+        return true;
+    }
 
-    unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) }
+    // Not trusted — call with prompt=true to register in TCC and show system dialog
+    eprintln!("[CRKT] Accessibility permission not granted, prompting user");
+    let key = CFString::new("AXTrustedCheckOptionPrompt");
+    let options = CFDictionary::from_CFType_pairs(&[(key, CFBoolean::true_value())]);
+    unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) };
+    false
 }
 
 #[cfg(not(target_os = "macos"))]
