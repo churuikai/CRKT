@@ -21,18 +21,6 @@ pub fn start_listener(_key: ModifierKey) -> mpsc::Receiver<()> {
     rx
 }
 
-/// Test whether Input Monitoring permission is granted by trying to create a CGEventTap.
-/// Must be called before start_listener. Safe to call from the main thread.
-#[cfg(target_os = "macos")]
-pub fn check_input_monitoring() -> bool {
-    macos::check_input_monitoring()
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn check_input_monitoring() -> bool {
-    true
-}
-
 /// Parse a "DoubleTap:Ctrl" / "DoubleTap:Shift" config string.
 /// Returns None if the string is not a double-tap shortcut.
 pub fn parse_double_tap(s: &str) -> Option<ModifierKey> {
@@ -49,7 +37,13 @@ mod macos {
     use super::ModifierKey;
     use std::ffi::c_void;
     use std::sync::mpsc;
+    use std::sync::Once;
     use std::time::{Duration, Instant};
+
+    /// Fires at most once per process — both the translate and append listener
+    /// can hit the failure path simultaneously, and we don't want to open the
+    /// Settings pane twice.
+    static OPEN_SETTINGS_ONCE: Once = Once::new();
 
     const DOUBLE_TAP_INTERVAL: Duration = Duration::from_millis(400);
     const COOLDOWN_AFTER_TRIGGER: Duration = Duration::from_millis(800);
@@ -62,6 +56,17 @@ mod macos {
     const K_CG_SESSION_EVENT_TAP: u32 = 1;
     const K_CG_HEAD_INSERT_EVENT_TAP: u32 = 0;
     const K_CG_EVENT_TAP_OPTION_LISTEN_ONLY: u32 = 1;
+
+    // Bits we treat as "modifier state". Anything outside this mask (e.g.
+    // kCGEventFlagMaskNonCoalesced = 0x100, device-specific left/right bits)
+    // is filtered out of equality checks so that spurious FLAGS_CHANGED events
+    // — which macOS does emit — are not mistaken for an interruption.
+    const MODIFIER_FLAGS_MASK: u64 = (1 << 16)  // AlphaShift (CapsLock)
+        | (1 << 17)  // Shift
+        | (1 << 18)  // Control
+        | (1 << 19)  // Alternate (Option)
+        | (1 << 20)  // Command
+        | (1 << 23); // SecondaryFn
 
     type CGEventTapProxy = *const c_void;
     type CGEventRef = *mut c_void;
@@ -97,37 +102,6 @@ mod macos {
         static kCFRunLoopCommonModes: *const c_void;
     }
 
-    extern "C" fn noop_callback(
-        _proxy: CGEventTapProxy,
-        _etype: u32,
-        event: CGEventRef,
-        _info: *mut c_void,
-    ) -> CGEventRef {
-        event
-    }
-
-    pub fn check_input_monitoring() -> bool {
-        unsafe {
-            let tap = CGEventTapCreate(
-                K_CG_SESSION_EVENT_TAP,
-                K_CG_HEAD_INSERT_EVENT_TAP,
-                K_CG_EVENT_TAP_OPTION_LISTEN_ONLY,
-                1 << K_CG_EVENT_FLAGS_CHANGED,
-                noop_callback,
-                std::ptr::null_mut(),
-            );
-            if tap.is_null() {
-                return false;
-            }
-            // Clean up the test tap
-            extern "C" {
-                fn CFRelease(cf: *const c_void);
-            }
-            CFRelease(tap as *const c_void);
-            true
-        }
-    }
-
     fn flag_mask(key: ModifierKey) -> u64 {
         match key {
             ModifierKey::Ctrl => 1 << 18,  // kCGEventFlagMaskControl
@@ -148,6 +122,7 @@ mod macos {
         other_key_pressed: bool,
         cooldown_until: Option<Instant>,
         was_key_pressed: bool,
+        prev_modifier_flags: u64,
         tap_port: CFMachPortRef,
         tx: mpsc::Sender<()>,
     }
@@ -184,8 +159,10 @@ mod macos {
             .unwrap_or(false);
 
         if event_type == K_CG_EVENT_FLAGS_CHANGED {
-            let flags = unsafe { CGEventGetFlags(event) };
+            let flags = unsafe { CGEventGetFlags(event) } & MODIFIER_FLAGS_MASK;
             let key_now = (flags & state.target_mask) != 0;
+            let prev_flags = state.prev_modifier_flags;
+            state.prev_modifier_flags = flags;
 
             if key_now != state.was_key_pressed {
                 // Target modifier state changed — always update was_key_pressed
@@ -211,8 +188,12 @@ mod macos {
                     state.other_key_pressed = false;
                 }
                 state.was_key_pressed = key_now;
-            } else {
-                // Other modifier changed — counts as interruption
+            } else if (flags ^ prev_flags) & !state.target_mask != 0 {
+                // Some OTHER modifier actually changed — treat as interruption.
+                // Plain `key_now == was_key_pressed` is not enough: macOS also
+                // emits FLAGS_CHANGED events with no real modifier change, and
+                // those would otherwise wipe `last_key_release` between the
+                // release and the next press of a double-tap.
                 state.other_key_pressed = true;
                 state.last_key_release = None;
             }
@@ -243,6 +224,7 @@ mod macos {
                     other_key_pressed: false,
                     cooldown_until: None,
                     was_key_pressed: false,
+                    prev_modifier_flags: 0,
                     tap_port: std::ptr::null_mut(),
                     tx,
                 }));
@@ -257,10 +239,24 @@ mod macos {
                 );
 
                 if tap.is_null() {
-                    eprintln!(
-                        "[CRKT] double_tap: CGEventTapCreate failed for {}",
-                        name
-                    );
+                    eprintln!("[CRKT] double_tap: CGEventTapCreate failed for {}", name);
+                    OPEN_SETTINGS_ONCE.call_once(|| {
+                        eprintln!("[CRKT] Input Monitoring permission likely missing, prompting user");
+                        // Modal dialog first so the user actually sees this — a
+                        // bare `open::that(Settings)` gets covered by the AX
+                        // system dialog that fires around the same time.
+                        let _ = std::process::Command::new("osascript")
+                            .args([
+                                "-e",
+                                r#"display dialog "Translator 需要「输入监控」权限来识别双击 Ctrl/Shift 等全局快捷键。
+
+点击「打开设置」后，请在「输入监控」列表中找到 Translator,打开它的开关,然后完全退出并重新启动 Translator。" with title "需要输入监控权限" buttons {"打开设置"} default button 1 with icon caution"#,
+                            ])
+                            .status();
+                        let _ = open::that(
+                            "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+                        );
+                    });
                     drop(Box::from_raw(state));
                     return;
                 }

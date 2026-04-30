@@ -1,3 +1,9 @@
+/// Check Accessibility permission. The silent check runs first; only if it
+/// fails do we call again with `prompt=true` — that variant has the side
+/// effect of registering the app in System Settings → Privacy → Accessibility
+/// so the user has a row to toggle on. Returns the trust state at call time;
+/// at first launch the prompted call is racy (the dialog is async) and will
+/// usually report false until the next launch.
 #[cfg(target_os = "macos")]
 pub fn ensure_accessibility_permission() -> bool {
     use core_foundation::base::TCFType;
@@ -10,22 +16,18 @@ pub fn ensure_accessibility_permission() -> bool {
         fn AXIsProcessTrustedWithOptions(options: *const c_void) -> bool;
     }
 
-    // Check silently first — no dialog if already trusted
-    let key = CFString::new("AXTrustedCheckOptionPrompt");
-    let options = CFDictionary::from_CFType_pairs(&[(key, CFBoolean::false_value())]);
-    let trusted =
-        unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) };
-
-    if trusted {
-        return true;
+    fn is_trusted(prompt: bool) -> bool {
+        let key = CFString::new("AXTrustedCheckOptionPrompt");
+        let value = if prompt { CFBoolean::true_value() } else { CFBoolean::false_value() };
+        let options = CFDictionary::from_CFType_pairs(&[(key, value)]);
+        unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) }
     }
 
-    // Not trusted — call with prompt=true to register in TCC and show system dialog
+    if is_trusted(false) {
+        return true;
+    }
     eprintln!("[CRKT] Accessibility permission not granted, prompting user");
-    let key = CFString::new("AXTrustedCheckOptionPrompt");
-    let options = CFDictionary::from_CFType_pairs(&[(key, CFBoolean::true_value())]);
-    unsafe { AXIsProcessTrustedWithOptions(options.as_concrete_TypeRef() as *const c_void) };
-    false
+    is_trusted(true)
 }
 
 #[cfg(not(target_os = "macos"))]

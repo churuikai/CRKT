@@ -7,7 +7,6 @@
         v-model="newModel"
         class="mac-input flex-1"
         placeholder="输入模型名称"
-        @keydown.enter="addModel"
       />
       <button
         class="px-3 py-[7px] text-[13px] text-blue-500 font-medium rounded-lg hover:bg-blue-500/[0.07] active:bg-blue-500/[0.12] transition-colors"
@@ -31,8 +30,30 @@
           class="accent-blue-500"
           @change="emitUpdate"
         />
-        <span class="flex-1 text-[13px] text-[#1d1d1f]/80">{{ model }}</span>
+        <input
+          v-if="editingIndex === i"
+          ref="editInputRef"
+          v-model="editingValue"
+          class="flex-1 bg-white/80 border border-blue-500/40 rounded px-2 py-0.5 text-[13px] text-[#1d1d1f] outline-none"
+          @keydown.enter.prevent="commitEdit(i)"
+          @keydown.esc.prevent="cancelEdit"
+          @blur="commitEdit(i)"
+          @click.prevent.stop
+        />
+        <span
+          v-else
+          class="flex-1 text-[13px] text-[#1d1d1f]/80"
+          @dblclick.prevent="startEdit(i)"
+        >{{ model }}</span>
         <button
+          v-if="editingIndex !== i"
+          class="text-[11px] text-black/25 hover:text-blue-500 transition-colors"
+          @click.prevent="startEdit(i)"
+        >
+          重命名
+        </button>
+        <button
+          v-if="editingIndex !== i"
           class="text-[11px] text-black/20 hover:text-red-500 transition-colors"
           @click.prevent="removeModel(i)"
         >
@@ -47,20 +68,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, nextTick } from "vue";
 
 const props = defineProps<{ models: string[]; selectedModel: string }>();
 const emit = defineEmits<{ update: [models: string[], selected: string] }>();
 
 const newModel = ref("");
 const selected = ref(props.selectedModel);
+const editingIndex = ref<number | null>(null);
+const editingValue = ref("");
+const editInputRef = ref<HTMLInputElement | HTMLInputElement[] | null>(null);
 
 function addModel() {
-  if (newModel.value.trim() && !props.models.includes(newModel.value.trim())) {
-    props.models.push(newModel.value.trim());
-    newModel.value = "";
-    emitUpdate();
-  }
+  const name = newModel.value.trim();
+  if (!name || props.models.includes(name)) return;
+  props.models.push(name);
+  newModel.value = "";
+  emitUpdate();
 }
 
 function removeModel(index: number) {
@@ -70,6 +94,33 @@ function removeModel(index: number) {
     selected.value = props.models[0];
   }
   emitUpdate();
+}
+
+function startEdit(index: number) {
+  editingIndex.value = index;
+  editingValue.value = props.models[index];
+  nextTick(() => {
+    const ref = editInputRef.value;
+    const el = Array.isArray(ref) ? ref[0] : ref;
+    el?.focus();
+    el?.select();
+  });
+}
+
+function commitEdit(index: number) {
+  if (editingIndex.value !== index) return;
+  const trimmed = editingValue.value.trim();
+  const original = props.models[index];
+  editingIndex.value = null;
+  if (!trimmed || trimmed === original) return;
+  if (props.models.includes(trimmed)) return;
+  if (selected.value === original) selected.value = trimmed;
+  props.models[index] = trimmed;
+  emitUpdate();
+}
+
+function cancelEdit() {
+  editingIndex.value = null;
 }
 
 function emitUpdate() {

@@ -23,8 +23,38 @@
       </div>
     </div>
 
+    <div class="mac-card divide-y divide-black/[0.04]">
+      <div class="flex items-center justify-between px-5 py-3.5">
+        <div>
+          <div class="text-[13px] text-[#1d1d1f]/80">翻译缓存</div>
+          <div class="text-[11px] text-black/40 mt-0.5">
+            {{ cacheSize === null ? "加载中…" : `${cacheSize} 条` }}
+          </div>
+        </div>
+        <button
+          class="px-3 py-[5px] text-[12px] text-red-500/70 font-medium rounded-lg hover:bg-red-500/[0.07] active:bg-red-500/[0.12] transition-colors disabled:opacity-25 disabled:pointer-events-none"
+          :disabled="!cacheSize"
+          @click="onClearCache"
+        >
+          清除
+        </button>
+      </div>
+      <div class="flex items-center justify-between px-5 py-3.5">
+        <div>
+          <div class="text-[13px] text-[#1d1d1f]/80">翻译历史</div>
+          <div class="text-[11px] text-black/40 mt-0.5">用于历史记录上下导航</div>
+        </div>
+        <button
+          class="px-3 py-[5px] text-[12px] text-red-500/70 font-medium rounded-lg hover:bg-red-500/[0.07] active:bg-red-500/[0.12] transition-colors"
+          @click="onClearHistory"
+        >
+          清除
+        </button>
+      </div>
+    </div>
+
     <div class="mac-card px-5 py-4">
-      <p class="text-[13px] text-[#1d1d1f]/40">Translator v0.1.0</p>
+      <p class="text-[13px] text-[#1d1d1f]/40">Translator v{{ version || "—" }}</p>
       <p class="mt-1.5">
         <a
           href="https://github.com/churuikai/CRKT"
@@ -36,10 +66,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 
 const props = defineProps<{ startOnBoot: boolean }>();
 defineEmits<{ update: [partial: Record<string, boolean>] }>();
 
 const autostart = ref(props.startOnBoot);
+const version = ref("");
+const cacheSize = ref<number | null>(null);
+
+async function loadCacheStats() {
+  try {
+    const stats = await invoke<{ size: number }>("get_cache_stats");
+    cacheSize.value = stats.size;
+  } catch {
+    cacheSize.value = 0;
+  }
+}
+
+async function onClearCache() {
+  if (!confirm(`确认清除翻译缓存（${cacheSize.value} 条）？`)) return;
+  await invoke("clear_cache");
+  await loadCacheStats();
+}
+
+async function onClearHistory() {
+  if (!confirm("确认清除全部翻译历史记录？")) return;
+  await invoke("history_clear");
+}
+
+onMounted(async () => {
+  try {
+    version.value = await getVersion();
+  } catch {
+    /* ignore — keeps the dash */
+  }
+  await loadCacheStats();
+});
 </script>

@@ -35,7 +35,21 @@
       </div>
       <div>
         <label class="mac-label">API Key</label>
-        <input v-model="current.api_key" type="password" class="mac-input font-mono" @change="emitUpdate" />
+        <div class="relative">
+          <input
+            v-model="current.api_key"
+            :type="showApiKey ? 'text' : 'password'"
+            class="mac-input font-mono pr-14"
+            @change="emitUpdate"
+          />
+          <button
+            type="button"
+            class="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[11px] text-black/35 hover:text-black/65 transition-colors"
+            @click="showApiKey = !showApiKey"
+          >
+            {{ showApiKey ? "隐藏" : "显示" }}
+          </button>
+        </div>
       </div>
       <div>
         <label class="mac-label">Base URL</label>
@@ -65,6 +79,7 @@ const selectedIndex = ref(
     props.profiles.findIndex((p) => p.name === props.selectedApi)
   )
 );
+const showApiKey = ref(false);
 
 const current = computed(() => props.profiles[selectedIndex.value]);
 
@@ -80,6 +95,8 @@ function addProfile() {
 
 function removeProfile() {
   if (props.profiles.length <= 1) return;
+  const name = props.profiles[selectedIndex.value]?.name ?? "";
+  if (!confirm(`确认删除 API 配置 "${name}"？此操作不可撤销。`)) return;
   props.profiles.splice(selectedIndex.value, 1);
   selectedIndex.value = Math.min(selectedIndex.value, props.profiles.length - 1);
   emitUpdate();

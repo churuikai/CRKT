@@ -22,6 +22,14 @@
     <main class="flex-1 overflow-auto px-8 py-8">
       <div v-if="!config" class="text-gray-300 text-sm animate-pulse">加载中...</div>
       <template v-else>
+        <Transition name="saved-toast">
+          <div
+            v-if="showSaved"
+            class="fixed bottom-5 right-5 px-3 py-1.5 bg-black/75 text-white text-[12px] rounded-lg shadow-md backdrop-blur"
+          >
+            已保存
+          </div>
+        </Transition>
         <ApiSettings
           v-if="activeTab === 'api'"
           :profiles="config.api_profiles"
@@ -77,12 +85,19 @@ const tabs = [
 const activeTab = ref("api");
 const { config, loadConfig, saveConfig } = useSettings();
 
+const showSaved = ref(false);
+let savedTimer: ReturnType<typeof setTimeout> | null = null;
+
 onMounted(() => loadConfig());
 
 function save() {
-  if (config.value) {
-    saveConfig({ ...config.value });
-  }
+  if (!config.value) return;
+  saveConfig({ ...config.value });
+  showSaved.value = true;
+  if (savedTimer) clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => {
+    showSaved.value = false;
+  }, 1200);
 }
 
 function onApiUpdate(profiles: AppConfig["api_profiles"], selectedApi: string) {
@@ -125,3 +140,15 @@ function onGeneralUpdate(partial: Record<string, boolean>) {
   save();
 }
 </script>
+
+<style scoped>
+.saved-toast-enter-active,
+.saved-toast-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.saved-toast-enter-from,
+.saved-toast-leave-to {
+  opacity: 0;
+  transform: translateY(6px);
+}
+</style>

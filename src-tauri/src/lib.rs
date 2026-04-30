@@ -90,15 +90,11 @@ pub fn run() {
             app.manage(language_detector);
             app.manage(active_translation);
 
-            // Check permissions (macOS: prompts user if not granted)
+            // Verify required macOS permissions (prompts user if not granted).
+            // Input Monitoring is checked lazily by `start_listener` itself —
+            // a preemptive probe was unreliable and opened Settings on every
+            // launch even when the real listener succeeded.
             platform::text_capture::ensure_accessibility_permission();
-            #[cfg(target_os = "macos")]
-            if !platform::double_tap::check_input_monitoring() {
-                eprintln!("[CRKT] Input Monitoring permission not granted, opening System Settings");
-                platform::open_settings(
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
-                );
-            }
 
             // Setup system tray
             platform::tray::setup_tray(app.handle())

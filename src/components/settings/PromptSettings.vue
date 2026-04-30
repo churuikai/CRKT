@@ -30,14 +30,22 @@
       </div>
       <div>
         <label class="mac-label">提示词模板</label>
-        <p class="text-[11px] text-black/25 mb-2">
-          可用变量: {source_language}, {target_language}, {selected_text}
-        </p>
+        <div class="flex flex-wrap gap-1.5 mb-2">
+          <button
+            v-for="v in vars"
+            :key="v"
+            type="button"
+            class="px-2 py-0.5 text-[11px] font-mono bg-blue-500/[0.07] text-blue-600/85 rounded hover:bg-blue-500/[0.14] active:bg-blue-500/[0.18] transition-colors"
+            @click="insertVar(v)"
+          >
+            {{ v }}
+          </button>
+        </div>
         <textarea
+          ref="promptTextarea"
           v-model="current.prompt"
           rows="10"
           class="mac-input font-mono leading-relaxed resize-y"
-          style="height: auto"
           @change="emitUpdate"
         />
       </div>
@@ -46,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 
 interface Skill {
   name: string;
@@ -66,6 +74,9 @@ const selectedIndex = ref(
 );
 const current = computed(() => props.skills[selectedIndex.value]);
 
+const vars = ["{source_language}", "{target_language}", "{selected_text}"];
+const promptTextarea = ref<HTMLTextAreaElement | null>(null);
+
 function addSkill() {
   props.skills.push({ name: `技能 ${props.skills.length + 1}`, prompt: "" });
   selectedIndex.value = props.skills.length - 1;
@@ -74,9 +85,26 @@ function addSkill() {
 
 function removeSkill() {
   if (props.skills.length <= 1) return;
+  const name = props.skills[selectedIndex.value]?.name ?? "";
+  if (!confirm(`确认删除技能 "${name}"？此操作不可撤销。`)) return;
   props.skills.splice(selectedIndex.value, 1);
   selectedIndex.value = Math.min(selectedIndex.value, props.skills.length - 1);
   emitUpdate();
+}
+
+function insertVar(v: string) {
+  const ta = promptTextarea.value;
+  if (!ta || !current.value) return;
+  const start = ta.selectionStart;
+  const end = ta.selectionEnd;
+  const text = current.value.prompt;
+  current.value.prompt = text.slice(0, start) + v + text.slice(end);
+  emitUpdate();
+  nextTick(() => {
+    ta.focus();
+    const pos = start + v.length;
+    ta.setSelectionRange(pos, pos);
+  });
 }
 
 function emitUpdate() {
