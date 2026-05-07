@@ -7,6 +7,7 @@
       <select
         v-model="selectedIndex"
         class="mac-input flex-1"
+        @change="emitUpdate"
       >
         <option v-for="(p, i) in profiles" :key="i" :value="i">
           {{ p.name }}

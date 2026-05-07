@@ -3,7 +3,7 @@
     <h2 class="text-[17px] font-semibold text-[#1d1d1f] tracking-tight">提示词</h2>
 
     <div class="flex items-center gap-2">
-      <select v-model="selectedIndex" class="mac-input flex-1">
+      <select v-model="selectedIndex" class="mac-input flex-1" @change="emitUpdate">
         <option v-for="(s, i) in skills" :key="i" :value="i">
           {{ s.name }}
         </option>
